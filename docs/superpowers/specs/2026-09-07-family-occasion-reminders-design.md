@@ -211,9 +211,9 @@ No marketing footer beyond a short “you’re receiving this because you joined
 ## Error handling
 
 - **Invite expired / invalid:** clear error; allow request of a new invite  
-- **Email send failure:** log `failed`; retry on a subsequent cron if still due  
+- **Email send failure:** log `failed`; retry on a later cron run the same due day  
 - **Cron auth failure:** endpoint requires a secret header/token; reject otherwise  
-- **Member removed or left:** delete membership and mutes; no further sends  
+- **Member leaves:** delete membership and mutes; no further sends  
 - **Occasion deleted:** cascade/stop further sends  
 
 ## Testing / acceptance
