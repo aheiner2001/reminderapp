@@ -30,14 +30,14 @@ Keep service-account private keys, email provider keys, Stripe secrets, and test
 allowlists in server-controlled configuration, never NEXT_PUBLIC variables.
 
 ## Tasks
-- [ ] Create the Next.js application and commit a lockfile; pin a supported Node version consistently in package.json engines, GitHub Actions, and Vercel.
-- [ ] Add scripts: typecheck (tsc --noEmit), test (test runner in non-watch mode), build (next build), dev, and start.
-- [ ] Add Firebase client initialization that occurs in browser-facing code; imports/builds must not attempt sign-in or live database access.
-- [ ] Build Google sign-in and enforce private tester membership and ownership at the backend/database level.
-- [ ] Implement event management and the reminder engine according to the spec, with boundary-date tests.
-- [ ] Add CI triggered by pull_request, push, and workflow_dispatch with contents: read permission, checkout, setup-node with npm cache, npm ci, npm run typecheck, npm test, and npm run build.
-- [ ] CI uses sandbox public configuration only; never depend on private production secrets in fork pull-request checks.
-- [ ] Run those same four commands locally and resolve failures before pushing.
+- [x] Create the Next.js application and commit a lockfile; pin a supported Node version consistently in package.json engines, GitHub Actions, and Vercel.
+- [x] Add scripts: typecheck (tsc --noEmit), test (test runner in non-watch mode), build (next build), dev, and start.
+- [x] Add Firebase client initialization that occurs in browser-facing code; imports/builds must not attempt sign-in or live database access.
+- [x] Build Google sign-in and enforce private tester membership and ownership at the backend/database level.
+- [x] Implement event management and the reminder engine according to the spec, with boundary-date tests.
+- [x] Add CI triggered by pull_request, push, and workflow_dispatch with contents: read permission, checkout, setup-node with npm cache, npm ci, npm run typecheck, npm test, and npm run build.
+- [x] CI uses sandbox public configuration only; never depend on private production secrets in fork pull-request checks.
+- [x] Run those same four commands locally and resolve failures before pushing.
 - [ ] Import aheiner2001/reminderapp into Vercel; framework preset Next.js; root directory repository root; install npm ci; build npm run build.
 - [ ] Configure the six public Firebase variables for Preview and Development before building; keep future Production Firebase configuration separate.
 - [ ] Enable Google as a Firebase Authentication provider and authorize the stable Vercel test hostname. Add individual preview hostnames when testing sign-in on those URLs; do not assume a wildcard works.
