@@ -49,6 +49,13 @@ The server APIs enforce invitations on every request and always derive the Fires
 
 ## Resend test email
 
+### Start without buying a domain
+
+For testing only, set `RESEND_FROM_EMAIL=Remember <onboarding@resend.dev>` in Vercel and redeploy. Resend allows that sender to email only the address associated with your Resend account. Sign in to Remember using that same address, and include it in `TESTER_EMAILS`. Other testers can use the UI after invitation, but their test emails will be rejected until you verify a domain you control.
+
+To send to other testers, add a domain in Resend, publish the DNS verification records it supplies, wait for verification, and change `RESEND_FROM_EMAIL` to an address on that domain. An existing domain you own can be used; the Vercel preview URL is not a sender domain you control. See [Resend's testing restriction](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
+
+
 Sign in with an invited Google account, save an occasion, open Reminder preview, choose a date with qualifying reminders, then click Send me this test email. The server reads saved events rather than trusting an email payload from the browser. The only recipient is the verified sign-in email. It rejects paused/disabled/empty summaries, applies an atomic limit of three requests per UTC day per user in the separate `reminderRateLimits` collection (account deletion cannot reset it), and uses an idempotency key for the provider request.
 
 Test history distinguishes sending, accepted, failed, and unknown. Accepted is not confirmation of inbox delivery. Unknown requests are not retried blindly. No provider delivery webhook is enabled yet; no test sends happen in CI. The free provider's test sender may restrict recipients; verify a sender domain before inviting other people.
