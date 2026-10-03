@@ -28,3 +28,7 @@ GitHub Actions runs the checks on pushes and PRs. Import the repository into Ver
 - [Original mockups](docs/mockups/README.md)
 
 Do not commit invited email addresses or server credentials. The sandbox Firebase web config is public; it does not grant Admin access.
+
+## Branches
+
+`main` is the canonical app and deployment branch. The former `feat/reminder-app` implementation and `cursor/family-reminder-design-0123` proposal were merged into main. Use main for Vercel imports and future work; old branches contain historical snapshots. The September family/Supabase proposal is archived, and the October Firebase design is authoritative.

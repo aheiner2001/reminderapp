@@ -1,8 +1,10 @@
 # Family Occasion Reminders — Design Spec
 
 **Date:** 2026-09-07  
-**Status:** Draft for user review  
+**Status:** Archived proposal; superseded by the October 2 Firebase design  
 **Working name:** Family Occasion Reminders
+
+> Preserved from the former Cursor branch for reference. This proposal is not the current implementation specification. The current app uses Firebase Google authentication, Firestore, private user accounts, and a 7-day default. See [current design](2026-10-02-birthday-reminder-design.md) and [deployment setup](../../DEPLOYMENT.md). Shared family accounts, Supabase, and the scheduler described below are not implemented.
 
 ## Problem
 
