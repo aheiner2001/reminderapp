@@ -1,9 +1,11 @@
 # TODO — Recommended build roadmap
 
-Updated October 2, 2026. This is a planning checklist; unchecked items are not implemented.
+Updated October 2, 2026. Completed implementation items are checked; unchecked items still need setup or future development.
+
+The testing app now uses Next.js on Vercel, server APIs with Firebase Admin, and Resend test emails. Automatic scheduled delivery remains a later milestone. See [deployment setup](docs/DEPLOYMENT.md).
 
 ## Recommendation
-Build a responsive web app first using TypeScript/React, Firebase Google Authentication, Firestore, Firebase Hosting, scheduled Cloud Functions, and Resend. Start with an invite-only free pilot. Add browser push later, then SMS if users want it. Android is a valid alternative if the priority becomes offline phone notifications.
+Build a responsive web app first using TypeScript/React, Firebase Google Authentication, Firestore, Vercel hosting, a future scheduled backend, and Resend. Start with an invite-only free pilot. Add browser push later, then SMS if users want it. Android is a valid alternative if the priority becomes offline phone notifications.
 
 See [full specification](docs/superpowers/specs/2026-10-02-birthday-reminder-design.md). The delivery rules in that document remain authoritative. This roadmap adds platform, access, costs, and future billing decisions.
 
@@ -20,7 +22,7 @@ Web push requires permission, HTTPS, a service worker, device tokens/subscriptio
 
 ## Phase 0 — Confirm the plan
 - [ ] Review the spec's 7-day default, 9 AM send time, weekly Monday window, and February 29 policy.
-- [ ] Choose web-first unless offline Android reminders are the main requirement.
+- [x] Choose web-first unless offline Android reminders are the main requirement.
 - [ ] Decide pilot size: proposed 2–5 people, free to them.
 - [ ] Privately obtain each tester's Google sign-in email. No tester email was supplied yet.
 - [ ] Choose sender domain and confirm access to its DNS.
@@ -29,25 +31,29 @@ Web push requires permission, HTTPS, a service worker, device tokens/subscriptio
 ## Phase 1 — Private accounts and tester access
 - [ ] Create development and production Firebase projects; use emulators locally.
 - [ ] Enable Google sign-in and configure authorized app domains.
-- [ ] After Google sign-in, verify the Firebase ID token on the server.
+- [x] After Google sign-in, verify the Firebase ID token on the server.
 - [ ] Match its verified email against an admin-controlled private invitation list; issue a UID-based tester entitlement.
 - [ ] Enforce active membership on every protected API, Firestore rule, and scheduled send. Owner checks are also required.
-- [ ] Prevent clients from editing invitations, membership, paid status, or roles.
+- [x] Prevent clients from editing invitations, membership, paid status, or roles.
 - [ ] Allow an administrator to revoke pilot access; recheck membership at dispatch.
-- [ ] Show unauthorized users an invite-only message without revealing invited addresses.
+- [x] Show unauthorized users an invite-only message without revealing invited addresses.
 - [ ] Test unauthorized accounts, direct database requests, and cross-account access.
 
 Google authentication identifies the user; it does not automatically restrict access to a few addresses or charge them. Unauthorized people may create an Auth identity before the app denies access; no data or sending rights should follow. Client-only email checks are insufficient. Keep real invitation addresses out of this public GitHub repository. A verified Google email can be the initial reminder destination; require re-verification if the destination changes.
 
 ## Phase 2 — Events and previews
-- [ ] Build event table and mobile cards matching the mockups.
-- [ ] Implement create/edit/archive/delete and per-event reminder preferences.
-- [ ] Store annual month/day separately from optional year.
-- [ ] Implement the deterministic date/reminder engine.
-- [ ] Add monthly, weekly, countdown, and event-day previews.
-- [ ] Test year rollover, daylight saving, leap days, empty summaries, and overlapping sections.
+- [x] Build event table and mobile cards matching the mockups.
+- [x] Implement create/edit/archive/delete and per-event reminder preferences.
+- [x] Store annual month/day separately from optional year.
+- [x] Implement the deterministic date/reminder engine.
+- [x] Add monthly, weekly, countdown, and event-day previews.
+- [x] Test year rollover, daylight saving, leap days, empty summaries, and overlapping sections.
 
 ## Phase 3 — Email and scheduling
+- [x] Add explicit test-email sending to the verified signed-in tester, with three sends per UTC day and delivery attempt history.
+- [x] Accept server-only `RESEND_API_KEY` or `resend_api_key`.
+- [ ] Configure `TESTER_EMAILS`, Firebase Admin credentials, and `RESEND_FROM_EMAIL` in Vercel.
+- [ ] Verify live Google sign-in, saved events, and inbox delivery on Vercel.
 - [ ] Configure Resend with a verified app-owned sending domain; store API keys only in backend secrets.
 - [ ] Use one shared scheduler job, not one Cloud Scheduler job per user/event.
 - [ ] Run every 15 minutes and query due users by next send time; avoid scanning every event on every run.
@@ -125,7 +131,7 @@ Payment processors charge fees. Free provider allowances do not make an unlimite
 - [ ] Each scheduled message follows the spec and appears correctly in delivery history.
 - [ ] Unsubscribe, revoke-access, archive, and account deletion stop future sends.
 - [ ] Concurrent jobs and transient failures are tested without intentional duplicate sends.
-- [ ] No real email allowlist, provider secret, or service-account key is committed.
+- [x] No real email allowlist, provider secret, or service-account key is committed.
 - [ ] A tester can manage events and receive reminders without leaving the website open.
 
 ## Official references
