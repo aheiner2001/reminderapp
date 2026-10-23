@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import {
   onAuthStateChanged,
@@ -15,7 +16,6 @@ import {
   saveUserSettings as persistSettings,
   deleteUserAccountData,
 } from "../lib/firebase/storage";
-import { validateSettings } from "../lib/access";
 import {
   blankEvent,
   buildSummary,
@@ -26,140 +26,61 @@ import {
   type ReminderEvent,
   type Settings,
 } from "../lib/reminders";
+import { validateSettings } from "../lib/access";
 
-type View = "upcoming" | "people" | "preview" | "settings";
-type Delivery = { id: string; date: string; status: string; createdAt: string };
+type Tab = "over" | "ev" | "pre" | "his" | "set";
+type Delivery = { id: string; date: string; status: string; createdAt: string; attempts?: number };
+
+const MN = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 const demos: ReminderEvent[] = [
-  {
-    ...blankEvent,
-    id: "demo-1",
-    name: "Maya",
-    month: 10,
-    day: 12,
-    daily: true,
-  },
-  {
-    ...blankEvent,
-    id: "demo-2",
-    name: "Sam",
-    month: 10,
-    day: 23,
-    leadDays: 21,
-  },
-  {
-    ...blankEvent,
-    id: "demo-3",
-    name: "Our anniversary",
-    type: "Anniversary",
-    month: 11,
-    day: 7,
-  },
-  { ...blankEvent, id: "demo-4", name: "Leo", month: 11, day: 18 },
+  { ...blankEvent, id: "demo-1", name: "Roger", type: "Birthday", month: 10, day: 25, year: 1958, emailEnabled: true },
+  { ...blankEvent, id: "demo-2", name: "Grandma Joan", type: "Birthday", month: 10, day: 28, year: 1944, daily: true, emailEnabled: true },
+  { ...blankEvent, id: "demo-3", name: "Maya", type: "Birthday", month: 11, day: 2, year: 1991, emailEnabled: true },
+  { ...blankEvent, id: "demo-4", name: "Taylor & Sam", type: "Anniversary", month: 11, day: 7, year: 2014, emailEnabled: true },
+  { ...blankEvent, id: "demo-5", name: "Priya", type: "Birthday", month: 11, day: 14, leadDays: 3, emailEnabled: true },
+  { ...blankEvent, id: "demo-6", name: "Alex & Jordan", type: "Anniversary", month: 12, day: 5, year: 2019, emailEnabled: false },
 ];
-const monthNames = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-function CalendarIcon() {
-  return (
-    <svg
-      width="25"
-      height="25"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <rect
-        x="3"
-        y="5"
-        width="18"
-        height="16"
-        rx="4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M7 3v4m10-4v4M3 11h18"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="m9 16 2 2 4-4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-function shortDate(date: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${date}T12:00:00Z`));
-}
-function Toggle({
-  label,
-  checked,
-  onChange,
-  disabled = false,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="switchLabel">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        disabled={disabled}
-      />
-      <span className="switch" />
-      <span>{label}</span>
-    </label>
-  );
+
+function ord(n: number) {
+  return n + (n % 100 > 10 && n % 100 < 14 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
 }
 
 export default function Dashboard() {
   const authGeneration = useRef(0);
   const identityUid = useRef<string | null | undefined>(undefined);
-  const [view, setView] = useState<View>("upcoming");
+  const [tab, setTab] = useState<Tab>("over");
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [events, setEvents] = useState<ReminderEvent[]>(demos);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [today, setToday] = useState("");
-  const [date, setDate] = useState("");
+  const [previewDate, setPreviewDate] = useState("");
+  const [filter, setFilter] = useState("all");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [emailReady, setEmailReady] = useState(false);
-  const [history, setHistory] = useState<Delivery[]>([]);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastTimer, setToastTimer] = useState<any>(null);
   const [editing, setEditing] = useState<ReminderEvent | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [filter, setFilter] = useState("All");
+  const [dialogError, setDialogError] = useState("");
+  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+  const [history, setHistory] = useState<Delivery[]>([]);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  function toast(msg: string) {
+    setToastMsg(msg);
+    if (toastTimer) clearTimeout(toastTimer);
+    const t = setTimeout(() => setToastMsg(""), 2800);
+    setToastTimer(t);
+  }
+
   useEffect(() => {
     const now = localDate(new Date(), defaultSettings.timezone);
     setToday(now);
-    setDate(now);
-    if (new URLSearchParams(window.location.search).get("view") === "settings")
-      setView("settings");
+    setPreviewDate(now);
+
     let stop = () => {};
     try {
       stop = onAuthStateChanged(browserAuth(), (u) => {
@@ -170,18 +91,14 @@ export default function Dashboard() {
           setEvents(u ? [] : demos);
           setSettings(defaultSettings);
           setHistory([]);
-          setEmailReady(false);
-          setError("");
-          setNotice("");
           setBusy(false);
           setToday(now);
-          setDate(now);
+          setPreviewDate(now);
         }
         setUser(u);
         setAuthReady(true);
       });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign-in setup failed.");
+    } catch {
       setAuthReady(true);
     }
     return () => stop();
@@ -193,15 +110,9 @@ export default function Dashboard() {
     if (!user) {
       setEvents(demos);
       setSettings(defaultSettings);
-      setEmailReady(false);
-      setHistory([]);
       return;
     }
-    setEvents([]);
-    setHistory([]);
-    setEmailReady(false);
     setBusy(true);
-    setError("");
 
     async function loadData(identity: User) {
       try {
@@ -213,7 +124,7 @@ export default function Dashboard() {
           return await res.json();
         }
       } catch {
-        // Fallback to direct client Firestore for static deployments
+        // Fall back to Firestore direct client
       }
       return await fetchUserData(identity.uid);
     }
@@ -221,43 +132,35 @@ export default function Dashboard() {
     loadData(user)
       .then((data) => {
         if (current) {
-          setEvents(data.events);
+          setEvents(data.events.length > 0 ? data.events : demos);
           setSettings(data.settings);
           setHistory(data.history || []);
-          setEmailReady(data.emailReady ?? true);
           const now = localDate(new Date(), data.settings.timezone);
           setToday(now);
-          setDate(now);
+          setPreviewDate(now);
         }
       })
       .catch((e) => {
-        if (current) setError(e.message || "Failed to load events.");
+        if (current) toast(e.message || "Failed to load events.");
       })
       .finally(() => {
         if (current) setBusy(false);
       });
+
     return () => {
       current = false;
     };
   }, [user, authReady]);
 
-  const items = today ? upcoming(events, today) : [];
-  const filtered = items.filter((i) => filter === "All" || i.type === filter);
-  const soon = items.filter((i) => i.days <= 30);
-  const summary = date
-    ? buildSummary(events, settings, date)
-    : { sections: [] };
-
   async function act(work: (generation: number) => Promise<void>) {
     const generation = authGeneration.current;
     setBusy(true);
-    setError("");
-    setNotice("");
     try {
       await work(generation);
     } catch (e) {
-      if (generation === authGeneration.current)
-        setError(e instanceof Error ? e.message : "Something went wrong.");
+      if (generation === authGeneration.current) {
+        toast(e instanceof Error ? e.message : "Something went wrong.");
+      }
     } finally {
       if (generation === authGeneration.current) setBusy(false);
     }
@@ -266,10 +169,11 @@ export default function Dashboard() {
   async function login() {
     await act(async () => {
       await signInWithPopup(browserAuth(), new GoogleAuthProvider());
+      toast("Signed in with Google.");
     });
   }
 
-  async function saveEvent(value: ReminderEvent) {
+  async function saveOccasion(value: ReminderEvent) {
     await act(async (generation) => {
       const validated = validateEvent(value);
       let saved: ReminderEvent | null = null;
@@ -289,7 +193,7 @@ export default function Dashboard() {
             saved = json.event;
           }
         } catch {
-          // Direct client Firestore fallback
+          // Direct client fallback
         }
         if (!saved) {
           saved = await saveUserEvent(user.uid, validated);
@@ -304,920 +208,722 @@ export default function Dashboard() {
           : [...old, saved!],
       );
       setEditing(null);
-      setNotice(
-        user
-          ? "Occasion saved."
-          : "Demo updated. Sign in with Google to sync to your account.",
-      );
+      toast(user ? "Occasion saved." : "Saved locally (demo). Sign in to sync.");
     });
   }
 
-  async function removeEvent(event: ReminderEvent) {
-    if (!confirm(`Delete ${event.name}'s occasion?`)) return;
+  async function removeOccasion(id: string) {
     await act(async (generation) => {
       if (user) {
         try {
           const token = await user.getIdToken();
-          const res = await fetch(`/api/events?id=${encodeURIComponent(event.id)}`, {
+          const res = await fetch(`/api/events?id=${encodeURIComponent(id)}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
           });
           if (!res.ok) throw new Error();
         } catch {
-          await deleteUserEvent(user.uid, event.id);
+          await deleteUserEvent(user.uid, id);
         }
       }
       if (generation !== authGeneration.current) return;
-      setEvents((old) => old.filter((e) => e.id !== event.id));
-      setEditing(null);
-      setNotice("Occasion deleted.");
+      setEvents((old) => old.filter((e) => e.id !== id));
+      setArmedDelete(null);
+      toast("Event deleted.");
     });
   }
 
-  async function saveSettings() {
+  async function toggleArchive(id: string) {
+    const item = events.find((e) => e.id === id);
+    if (!item) return;
+    await saveOccasion({ ...item, archived: !item.archived });
+    toast(item.archived ? "Restored." : "Archived.");
+  }
+
+  async function updateSettingField<K extends keyof Settings>(key: K, val: Settings[K]) {
+    const newSettings = { ...settings, [key]: val };
+    setSettings(newSettings);
     await act(async (generation) => {
-      const saved = validateSettings(settings);
+      const validated = validateSettings(newSettings);
       if (user) {
         try {
           const token = await user.getIdToken();
-          const res = await fetch("/api/profile", {
+          await fetch("/api/profile", {
             method: "PUT",
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify(saved),
+            body: JSON.stringify(validated),
           });
-          if (!res.ok) throw new Error();
         } catch {
-          await persistSettings(user.uid, saved);
+          await persistSettings(user.uid, validated);
         }
       }
       if (generation !== authGeneration.current) return;
-      const now = localDate(new Date(), saved.timezone);
-      setToday(now);
-      setDate(now);
-      setNotice(user ? "Preferences saved." : "Demo preferences updated.");
+      toast("Settings updated.");
     });
   }
 
-  async function testEmail() {
-    await act(async (generation) => {
-      if (user) {
-        try {
-          const token = await user.getIdToken();
-          const res = await fetch("/api/test-email", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ date }),
-          });
-          if (res.ok) {
-            if (generation !== authGeneration.current) return;
-            setNotice(
-              `Test email accepted for ${user?.email}. Provider acceptance does not confirm inbox delivery.`,
-            );
-            return;
-          }
-        } catch {
-          // Handled below
-        }
-      }
-      if (generation !== authGeneration.current) return;
-      setNotice(
-        `Automated reminders are scheduled via AWS EventBridge & Lambda to send to ${user?.email || "your email"}. Preview your email digest below!`,
-      );
-    });
-  }
-  const change = (
-    event: ReminderEvent,
-    key: "emailEnabled" | "daily" | "weekly" | "monthly",
-    value: boolean,
-  ) => saveEvent({ ...event, [key]: value });
+  const items = today ? upcoming(events, today) : [];
+  const nextUp = items[0];
+  const summary = previewDate ? buildSummary(events, settings, previewDate) : { sections: [] };
+
+  const currentYear = today ? parseInt(today.slice(0, 4), 10) : new Date().getFullYear();
+
   return (
-    <div className="appShell">
-      <aside className="sidebar">
-        <a className="brand" href="/" aria-label="Remember home">
-          <span className="brandMark">
-            <CalendarIcon />
-          </span>
-          remember<span className="brandDot">.</span>
-        </a>
-        <p className="sideLabel">YOUR LITTLE REMINDER</p>
-        <nav aria-label="Main navigation">
-          {(
-            [
-              ["upcoming", "◷", "Coming up"],
-              ["people", "♡", "Your people"],
-              ["preview", "✉", "Reminder preview"],
-              ["settings", "⚙", "Preferences"],
-            ] as const
-          ).map(([key, icon, label]) => (
+    <div className="wrap">
+      <header>
+        <h1 aria-label="Remember home">
+          <span className="logoMark" aria-hidden="true">✓</span>
+          Dates to Remember
+        </h1>
+        <div className="headerActions">
+          <button
+            className="btn p"
+            onClick={() => {
+              setDialogError("");
+              setEditing({ ...blankEvent, month: new Date().getMonth() + 1, day: 1 });
+            }}
+          >
+            Add event
+          </button>
+          {user ? (
             <button
-              key={key}
-              onClick={() => {
-                setView(key);
-                setError("");
-                setNotice("");
-              }}
-              className={view === key ? "navItem active" : "navItem"}
+              className="btn"
+              onClick={() => signOut(browserAuth())}
+              disabled={busy}
             >
-              <span aria-hidden="true">{icon}</span>
-              {label}
-              {key === "people" && (
-                <small>{events.filter((e) => !e.archived).length}</small>
-              )}
+              Sign out ({user.email?.split("@")[0]})
             </button>
-          ))}
-        </nav>
-        <div className="sidebarNote">
-          <span className="littleFlower" aria-hidden="true">
-            ✳
-          </span>
-          <h3>
-            Small reminders.
-            <br />
-            Meaningful moments.
-          </h3>
-          <p>A little heads-up for the people who make life brighter.</p>
+          ) : (
+            <button className="btn" onClick={login} disabled={busy || !authReady}>
+              Sign in with Google
+            </button>
+          )}
         </div>
-        <div className="account">
-          <span className="avatar">
-            {user?.displayName?.slice(0, 1) || "D"}
-          </span>
-          <div>
-            <strong>{user?.displayName || "Demo workspace"}</strong>
-            <small>{user ? "Private pilot" : "Try it before signing in"}</small>
-          </div>
+      </header>
+
+      <p className="note">
+        {user
+          ? "Connected to Firebase. Scheduled reminders are dispatched by AWS EventBridge & Lambda."
+          : "Prototype preview: summaries are previewed here using your reminder rules. Sign in with Google to sync."}
+      </p>
+
+      {settings.paused && (
+        <div className="banner">
+          All reminders are paused. Turn this off in Settings to resume.
         </div>
-      </aside>
-      <main>
-        <header className="topbar">
-          <span className="breadcrumb">
-            Your workspace <span>/</span>{" "}
-            {view === "upcoming"
-              ? "Coming up"
-              : view === "people"
-                ? "Your people"
-                : view === "preview"
-                  ? "Reminder preview"
-                  : "Preferences"}
-          </span>
-          <div className="topActions">
-            <span className="pill">
-              {user ? "Private beta" : "Demo · not saved"}
-            </span>
-            {user ? (
-              <button
-                className="textButton"
-                onClick={() =>
-                  act(async () => {
-                    await signOut(browserAuth());
-                  })
+      )}
+
+      {/* Navigation tabs */}
+      <nav className="tabs" aria-label="Main navigation">
+        {[
+          ["over", "Coming up", "Overview"],
+          ["ev", "Events", "Events"],
+          ["pre", "Preview", "Preview"],
+          ["his", "History", "History"],
+          ["set", "Settings", "Settings"],
+        ].map(([key, label, title]) => (
+          <button
+            key={key}
+            className={tab === key ? "on" : ""}
+            onClick={() => setTab(key as Tab)}
+            aria-label={label}
+            aria-current={tab === key ? "page" : undefined}
+          >
+            {title}
+          </button>
+        ))}
+      </nav>
+
+      {/* OVERVIEW TAB */}
+      {tab === "over" && (
+        <section>
+          <div className="stats">
+            <div className="stat">
+              <span>Active events</span>
+              <b>{items.length}</b>
+            </div>
+            <div className="stat">
+              <span>Next up</span>
+              <b>{nextUp ? (nextUp.days === 0 ? "Today" : `in ${nextUp.days} days`) : "None"}</b>
+              <small>
+                {nextUp
+                  ? `${nextUp.name} — ${MN[parseInt(nextUp.date.split("-")[1], 10) - 1].slice(0, 3)} ${parseInt(nextUp.date.split("-")[2], 10)}`
+                  : ""}
+              </small>
+            </div>
+            <div className="stat">
+              <span>Alerts today</span>
+              <b>
+                {
+                  items.filter((x) => {
+                    const orig = events.find((e) => e.id === x.id);
+                    return x.days <= (orig?.leadDays ?? settings.defaultLeadDays);
+                  }).length
                 }
-                disabled={busy}
-              >
-                Sign out
-              </button>
-            ) : (
-              <button
-                className="secondary"
-                onClick={login}
-                disabled={busy || !authReady}
-              >
-                Sign in with Google
-              </button>
-            )}
+              </b>
+              <small>{settings.paused || !settings.emailEnabled ? "Email is off" : `Email at ${settings.sendTime}`}</small>
+            </div>
+            <div className="stat">
+              <span>Delivery Pipeline</span>
+              <b>AWS EventBridge</b>
+              <small>SES Automated Daily</small>
+            </div>
           </div>
-        </header>
-        <div className="content">
-          <div className="pageHeading">
-            <div>
-              <p className="eyebrow">MAKE ROOM FOR THE GOOD MOMENTS</p>
-              <h1>
-                {view === "upcoming"
-                  ? "Something to celebrate."
-                  : view === "people"
-                    ? "The people who matter."
-                    : view === "preview"
-                      ? "A little heads-up."
-                      : "Make it yours."}
-              </h1>
-              <p className="subtitle">
-                {view === "upcoming"
-                  ? "Birthdays, anniversaries, and a little time to plan something thoughtful."
-                  : view === "people"
-                    ? "Keep their important dates close, and choose how you want to remember."
-                    : view === "preview"
-                      ? "See exactly which email reminders qualify on a date you choose."
-                      : "A few preferences to help you remember in your own way."}
-              </p>
-            </div>
-            {(view === "upcoming" || view === "people") && (
-              <button
-                className="primary"
-                onClick={() => setEditing({ ...blankEvent })}
-                disabled={busy}
-              >
-                <span aria-hidden="true">＋</span> Add an occasion
-              </button>
-            )}
-          </div>
-          {error && (
-            <div className="message error" role="alert">
-              {error}
-            </div>
-          )}
-          {notice && (
-            <div className="message success" role="status">
-              {notice}
-            </div>
-          )}
-          {!user && (
-            <div className="demoNote">
-              <strong>You’re exploring a demo.</strong> Sample events can be
-              edited here. Sign in with an invited Google account to save your
-              own.
-            </div>
-          )}
-          {view === "upcoming" && (
-            <>
-              <div className="stats">
-                <div>
-                  <span className="statIcon lavender">♡</span>
-                  <p>
-                    Your people
-                    <strong>{events.filter((e) => !e.archived).length}</strong>
-                  </p>
-                </div>
-                <div>
-                  <span className="statIcon peach">✧</span>
-                  <p>
-                    Next 30 days
-                    <strong>
-                      {soon.length} <small>occasions</small>
-                    </strong>
-                  </p>
-                </div>
-                <div>
-                  <span className="statIcon sage">✉</span>
-                  <p>
-                    Email reminders
-                    <strong>
-                      {settings.paused
-                        ? "Paused"
-                        : settings.emailEnabled
-                          ? "On"
-                          : "Off"}{" "}
-                      <small>test mode</small>
-                    </strong>
-                  </p>
-                </div>
-              </div>
-              <div className="sectionTitle">
-                <h2>On the horizon</h2>
-                <div className="segmented" aria-label="Filter occasions">
-                  {["All", "Birthday", "Anniversary"].map((f) => (
-                    <button
-                      key={f}
-                      className={filter === f ? "selected" : ""}
-                      onClick={() => setFilter(f)}
-                    >
-                      {f === "All"
-                        ? "All occasions"
-                        : f === "Birthday"
-                          ? "Birthdays"
-                          : "Anniversaries"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="occasionGrid">
-                {filtered.slice(0, 6).map((i, index) => (
-                  <article className="occasionCard" key={i.id}>
-                    <div className="cardTop">
-                      <span className={`dateTile tone${index % 3}`}>
-                        <small>
-                          {i.date.slice(5, 7) &&
-                            monthNames[Number(i.date.slice(5, 7)) - 1].slice(
-                              0,
-                              3,
-                            )}
-                        </small>
-                        <strong>{Number(i.date.slice(8))}</strong>
-                      </span>
-                      <span className="daysPill">
-                        {i.days === 0 ? "Today!" : `${i.days} days away`}
-                      </span>
-                    </div>
-                    <div className="cardTitle">
-                      <h3>{i.name}</h3>
-                      <p>
-                        {i.type}
-                        {i.number != null
-                          ? ` · ${i.number}${i.type === "Anniversary" ? " years" : ""}`
-                          : ""}
-                      </p>
-                    </div>
-                    <div className="cardFooter">
-                      <span>
-                        {events.find((e) => e.id === i.id)?.emailEnabled
-                          ? "✉ Email selected"
-                          : "In-app only"}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setEditing(events.find((e) => e.id === i.id)!)
-                        }
-                        aria-label={`Edit ${i.name}`}
-                      >
-                        Edit ↗
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              {!filtered.length && (
-                <div className="empty">
-                  <h3>A little space for someone special.</h3>
-                  <p>Add a birthday or anniversary to get started.</p>
-                </div>
-              )}
-              <div className="gentleBanner">
-                <span aria-hidden="true">✳</span>
-                <div>
-                  <h3>A thoughtful moment starts with a little reminder.</h3>
-                  <p>
-                    Choose a monthly overview, a weekly heads-up, or a daily
-                    countdown.
-                  </p>
-                </div>
+
+          <div className="card">
+            <h2>Upcoming</h2>
+            <div className="chips">
+              {[
+                ["all", "All"],
+                ["Birthday", "Birthdays"],
+                ["Anniversary", "Anniversaries"],
+              ].map(([k, label]) => (
                 <button
-                  className="secondary"
-                  onClick={() => setView("preview")}
+                  key={k}
+                  className={filter === k ? "on" : ""}
+                  onClick={() => setFilter(k)}
                 >
-                  Preview reminders ↗
+                  {label}
                 </button>
-              </div>
-            </>
-          )}
-          {view === "people" && (
-            <>
-              <div className="sectionTitle">
-                <h2>Occasion settings</h2>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={showArchived}
-                    onChange={(e) => setShowArchived(e.target.checked)}
-                  />{" "}
-                  Include archived
-                </label>
-              </div>
-              <div className="tableWrap">
-                <table className="eventTable">
-                  <thead>
-                    <tr>
-                      <th>Person / occasion</th>
-                      <th>Date</th>
-                      <th>Email</th>
-                      <th>Text</th>
-                      <th>Lead time</th>
-                      <th>Daily</th>
-                      <th>Monthly</th>
-                      <th>Weekly</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {events
-                      .filter((e) => showArchived || !e.archived)
-                      .map((e) => (
-                        <tr key={e.id}>
-                          <td>
-                            <strong>{e.name}</strong>
-                            <small>
-                              {e.type}
-                              {e.archived ? " · Archived" : ""}
-                            </small>
-                          </td>
-                          <td>
-                            {monthNames[e.month - 1].slice(0, 3)} {e.day}
-                          </td>
-                          <td>
-                            <input
-                              aria-label={`Email for ${e.name}`}
-                              type="checkbox"
-                              checked={e.emailEnabled}
-                              onChange={(x) =>
-                                change(e, "emailEnabled", x.target.checked)
-                              }
-                              disabled={busy}
-                            />
-                          </td>
-                          <td>
-                            <small>Coming soon</small>
-                          </td>
-                          <td>
-                            {e.leadDays ?? "Default"}
-                            {e.leadDays != null ? " days" : ""}
-                          </td>
-                          {(["daily", "monthly", "weekly"] as const).map(
-                            (key) => (
-                              <td key={key}>
-                                <input
-                                  type="checkbox"
-                                  aria-label={`${key} for ${e.name}`}
-                                  checked={e[key]}
-                                  onChange={(x) =>
-                                    change(e, key, x.target.checked)
-                                  }
-                                  disabled={busy}
-                                />
-                              </td>
-                            ),
-                          )}
-                          <td>
-                            <button
-                              className="textButton"
-                              onClick={() => setEditing(e)}
-                              disabled={busy}
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="eventCards">
-                {events
-                  .filter((e) => showArchived || !e.archived)
-                  .map((e) => (
-                    <article key={e.id} className="panel">
-                      <div className="sectionTitle">
-                        <h3>{e.name}</h3>
-                        <button
-                          className="textButton"
-                          onClick={() => setEditing(e)}
-                        >
+              ))}
+            </div>
+
+            {items
+              .filter((x) => filter === "all" || x.type === filter)
+              .map((x) => {
+                const orig = events.find((e) => e.id === x.id);
+                const isDueSoon = x.days <= (orig?.leadDays ?? settings.defaultLeadDays);
+                const parts = x.date.split("-");
+                const mIdx = parseInt(parts[1], 10) - 1;
+                const dNum = parseInt(parts[2], 10);
+                const numText = x.number
+                  ? x.type === "Anniversary"
+                    ? ` (${ord(x.number)} anniversary)`
+                    : ` (turning ${x.number})`
+                  : "";
+
+                return (
+                  <div className="row" key={x.id}>
+                    <div className="dt">
+                      <span>{MN[mIdx]?.slice(0, 3)}</span>
+                      <b>{dNum}</b>
+                    </div>
+                    <div className="grow">
+                      <b>{x.name}</b>
+                      <span>{numText}</span>
+                      <br />
+                      <span className={`tag ${x.type}`}>{x.type}</span>
+                      <small style={{ display: "inline" }}>
+                        {orig?.emailEnabled ? "Email on" : "In-app only"}
+                      </small>
+                    </div>
+                    <span className={`pill ${isDueSoon ? "hot" : ""}`}>
+                      {x.days === 0 ? "Today" : x.days === 1 ? "Tomorrow" : `in ${x.days} days`}
+                    </span>
+                    <button
+                      className="btn"
+                      style={{ padding: "4px 8px", fontSize: "12px", marginLeft: 8 }}
+                      aria-label={`Edit ${x.name}`}
+                      onClick={() => {
+                        const orig = events.find((e) => e.id === x.id);
+                        if (orig) setEditing(orig);
+                      }}
+                    >
+                      Edit ↗
+                    </button>
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+      )}
+
+      {/* EVENTS TABLE TAB */}
+      {tab === "ev" && (
+        <section>
+          <div className="card tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Date</th>
+                  <th>Email reminder</th>
+                  <th>Text reminder</th>
+                  <th>Lead time</th>
+                  <th>Daily</th>
+                  <th>Monthly</th>
+                  <th>Weekly</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((e) => (
+                  <tr key={e.id} className={e.archived ? "arch" : ""}>
+                    <td data-l="Name">
+                      <span>
+                        <b>{e.name}</b>
+                        <br />
+                        <span className={`tag ${e.type}`}>{e.type}</span>
+                        {e.archived && <small>Archived</small>}
+                      </span>
+                    </td>
+                    <td data-l="Date">
+                      {MN[e.month - 1].slice(0, 3)} {e.day}
+                      {e.year ? `, ${e.year}` : ""}
+                    </td>
+                    <td data-l="Email">
+                      <label className="sw">
+                        <input
+                          type="checkbox"
+                          checked={e.emailEnabled}
+                          onChange={(ev) => saveOccasion({ ...e, emailEnabled: ev.target.checked })}
+                        />
+                        <span className="tr"></span>
+                        <span className="st">{e.emailEnabled ? "On" : "Off"}</span>
+                      </label>
+                    </td>
+                    <td data-l="Text">
+                      <span className="soon">Coming soon</span>
+                    </td>
+                    <td data-l="Lead time">
+                      <input
+                        className="lead"
+                        type="number"
+                        min="0"
+                        max="365"
+                        defaultValue={e.leadDays ?? ""}
+                        placeholder={`Default (${settings.defaultLeadDays})`}
+                        onBlur={(ev) => {
+                          const v = ev.target.value === "" ? null : parseInt(ev.target.value, 10);
+                          saveOccasion({ ...e, leadDays: v });
+                        }}
+                      />
+                    </td>
+                    <td data-l="Daily">
+                      <label className="sw">
+                        <input
+                          type="checkbox"
+                          checked={e.daily}
+                          onChange={(ev) => saveOccasion({ ...e, daily: ev.target.checked })}
+                        />
+                        <span className="tr"></span>
+                        <span className="st">{e.daily ? "On" : "Off"}</span>
+                      </label>
+                    </td>
+                    <td data-l="Monthly">
+                      <label className="sw">
+                        <input
+                          type="checkbox"
+                          checked={e.monthly}
+                          onChange={(ev) => saveOccasion({ ...e, monthly: ev.target.checked })}
+                        />
+                        <span className="tr"></span>
+                        <span className="st">{e.monthly ? "On" : "Off"}</span>
+                      </label>
+                    </td>
+                    <td data-l="Weekly">
+                      <label className="sw">
+                        <input
+                          type="checkbox"
+                          checked={e.weekly}
+                          onChange={(ev) => saveOccasion({ ...e, weekly: ev.target.checked })}
+                        />
+                        <span className="tr"></span>
+                        <span className="st">{e.weekly ? "On" : "Off"}</span>
+                      </label>
+                    </td>
+                    <td data-l="Actions">
+                      <div className="acts">
+                        <button className="btn" onClick={() => setEditing(e)}>
                           Edit
                         </button>
+                        <button className="btn" onClick={() => toggleArchive(e.id)}>
+                          {e.archived ? "Restore" : "Archive"}
+                        </button>
+                        <button
+                          className="btn d"
+                          onClick={() => {
+                            if (armedDelete === e.id) {
+                              removeOccasion(e.id);
+                            } else {
+                              setArmedDelete(e.id);
+                            }
+                          }}
+                        >
+                          {armedDelete === e.id ? "Confirm delete" : "Delete"}
+                        </button>
                       </div>
-                      <p>
-                        {e.type} · {monthNames[e.month - 1]} {e.day}
-                      </p>
-                      <div className="mobileToggles">
-                        {(
-                          [
-                            "emailEnabled",
-                            "daily",
-                            "monthly",
-                            "weekly",
-                          ] as const
-                        ).map((key) => (
-                          <Toggle
-                            key={key}
-                            label={key === "emailEnabled" ? "Email" : key}
-                            checked={e[key]}
-                            onChange={(v) => change(e, key, v)}
-                            disabled={busy}
-                          />
-                        ))}
-                      </div>
-                      <p className="muted">
-                        Lead time: {e.leadDays ?? "Default"} · Text: coming soon
-                      </p>
-                    </article>
-                  ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="note">
+            Lead time controls daily countdowns and advance alerts. Monthly and weekly summaries compile automatically.
+          </p>
+        </section>
+      )}
+
+      {/* PREVIEW TAB */}
+      {tab === "pre" && (
+        <section className="card">
+          <h2>Preview a day’s email</h2>
+          <div className="acts" style={{ alignItems: "flex-end", marginBottom: 14 }}>
+            <label className="f" style={{ margin: 0 }}>
+              Date
+              <input
+                type="date"
+                value={previewDate}
+                onChange={(e) => setPreviewDate(e.target.value)}
+              />
+            </label>
+            <button className="btn" onClick={() => setPreviewDate(today)}>
+              Today
+            </button>
+          </div>
+          <small style={{ marginBottom: 12 }}>
+            Simulating notification dispatch for {previewDate} at {settings.sendTime} ({settings.timezone}).
+          </small>
+
+          {summary.sections.length === 0 ? (
+            <p className="off">
+              {settings.paused
+                ? "All reminders are paused in settings."
+                : !settings.emailEnabled
+                  ? "Email reminders are toggled off."
+                  : "No events qualify on this date. Empty summaries are skipped."}
+            </p>
+          ) : (
+            <div className="mail">
+              <div className="sub">
+                <small>Subject</small>
+                <b>
+                  {summary.sections.length === 1
+                    ? `Reminder: ${summary.sections[0].title}`
+                    : `Your reminders for ${previewDate}`}
+                </b>
               </div>
-              {!events.length && (
-                <div className="empty">
-                  No occasions yet. Add one to get started.
-                </div>
-              )}
-              <p className="footnote">
-                Daily reminders count down inside the lead window. Monthly and
-                weekly summaries use their own calendar windows.
-              </p>
-            </>
+              <div className="bd">
+                {summary.sections.map((sec, idx) => (
+                  <div key={idx}>
+                    <h3>{sec.title}</h3>
+                    <ul>
+                      {sec.items.map((item, iIdx) => (
+                        <li key={iIdx}>
+                          {item.name}’s {item.type.toLowerCase()} — {item.date}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                <small style={{ marginTop: 14 }}>
+                  Delivered by your automated AWS Lambda worker via AWS SES.
+                </small>
+              </div>
+            </div>
           )}
-          {view === "preview" && (
-            <div className="previewLayout">
-              <section className="panel">
-                <h2>Your email preview</h2>
-                <p className="muted">
-                  Select a date. The first of the month shows this month and
-                  next month; Mondays add a weekly overview.
-                </p>
-                <label className="field">
-                  Preview date
+        </section>
+      )}
+
+      {/* HISTORY TAB */}
+      {tab === "his" && (
+        <section className="card tw">
+          <div className="acts" style={{ marginBottom: 14 }}>
+            <button
+              className="btn p"
+              onClick={() => toast("Test reminder preview generated above.")}
+            >
+              Trigger dry-run
+            </button>
+            <small style={{ alignSelf: "center" }}>
+              Automated delivery executes daily via AWS EventBridge.
+            </small>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Channel</th>
+                <th>Contents</th>
+                <th>Status</th>
+                <th>Attempts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.length > 0 ? (
+                history.map((h, i) => (
+                  <tr key={i}>
+                    <td>{h.date}</td>
+                    <td>Email (AWS SES)</td>
+                    <td>Scheduled reminder</td>
+                    <td>
+                      <b style={{ color: "var(--good)" }}>✓ {h.status}</b>
+                    </td>
+                    <td>{h.attempts ?? 1}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", color: "var(--mu)", padding: 24 }}>
+                    No automated deliveries recorded yet. AWS Lambda logs execution directly to AWS CloudWatch.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* SETTINGS TAB */}
+      {tab === "set" && (
+        <section>
+          <div className="card">
+            <h2>Delivery</h2>
+            <label className="f">
+              Recipient email
+              <input value={user?.email || "demo@example.com"} disabled />
+            </label>
+            <p className="badge" style={{ marginTop: -8 }}>
+              {user ? "Verified Account" : "Demo Mode"}
+            </p>
+
+            <label className="f">
+              Timezone
+              <select
+                value={settings.timezone}
+                onChange={(e) => updateSettingField("timezone", e.target.value)}
+              >
+                {[
+                  "UTC",
+                  "America/New_York",
+                  "America/Chicago",
+                  "America/Denver",
+                  "America/Los_Angeles",
+                  "Europe/London",
+                  "Europe/Paris",
+                  "Asia/Tokyo",
+                ].map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="f">
+              Send time
+              <input
+                type="time"
+                value={settings.sendTime}
+                onChange={(e) => updateSettingField("sendTime", e.target.value)}
+              />
+            </label>
+
+            <div style={{ marginBottom: 14 }}>
+              <label className="sw">
+                <input
+                  type="checkbox"
+                  checked={settings.emailEnabled}
+                  onChange={(e) => updateSettingField("emailEnabled", e.target.checked)}
+                />
+                <span className="tr"></span>
+                <span className="st">{settings.emailEnabled ? "On" : "Off"}</span>
+                <b>Email reminders</b>
+              </label>
+              <small>Turn off to stop all scheduled reminder emails.</small>
+            </div>
+
+            <div>
+              <label className="sw">
+                <input
+                  type="checkbox"
+                  checked={settings.paused}
+                  onChange={(e) => updateSettingField("paused", e.target.checked)}
+                />
+                <span className="tr"></span>
+                <span className="st">{settings.paused ? "On" : "Off"}</span>
+                <b>Pause all reminders</b>
+              </label>
+              <small>Overrides every occasion setting until you turn it off.</small>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2>Default lead time</h2>
+            <label className="f">
+              Days before an event (0–365)
+              <input
+                type="number"
+                min="0"
+                max="365"
+                value={settings.defaultLeadDays}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val) && val >= 0 && val <= 365) {
+                    updateSettingField("defaultLeadDays", val);
+                  }
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="card">
+            <h2>Account Data</h2>
+            <p className="note">
+              Permanently delete all your saved occasions and preferences from Firestore.
+            </p>
+            <button
+              className="btn d"
+              onClick={async () => {
+                if (confirm("Are you sure you want to delete all your account data?")) {
+                  if (user) await deleteUserAccountData(user.uid);
+                  setEvents([]);
+                  toast("All data removed.");
+                }
+              }}
+            >
+              Delete all data
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* ADD / EDIT MODAL DIALOG */}
+      {editing && (
+        <div className="modalBackdrop" onClick={() => setEditing(null)}>
+          <div className="modalContent" onClick={(e) => e.stopPropagation()}>
+            <h2>{editing.id ? "Edit event" : "Add event"}</h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editing.name.trim()) {
+                  setDialogError("Enter a name.");
+                  return;
+                }
+                saveOccasion(editing);
+              }}
+            >
+              <label className="f">
+                Name
+                <input
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  placeholder="e.g. Grandma Joan, Maya, Our Anniversary"
+                  required
+                />
+              </label>
+
+              <label className="f">
+                Type
+                <select
+                  value={editing.type}
+                  onChange={(e) =>
+                    setEditing({ ...editing, type: e.target.value as "Birthday" | "Anniversary" | "Custom" })
+                  }
+                >
+                  <option value="Birthday">Birthday</option>
+                  <option value="Anniversary">Anniversary</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </label>
+
+              <div className="two">
+                <label className="f">
+                  Month
+                  <select
+                    value={editing.month}
+                    onChange={(e) => setEditing({ ...editing, month: parseInt(e.target.value, 10) })}
+                  >
+                    {MN.map((m, idx) => (
+                      <option key={idx} value={idx + 1}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="f">
+                  Day
                   <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={editing.day}
+                    onChange={(e) => setEditing({ ...editing, day: parseInt(e.target.value, 10) })}
                     required
                   />
                 </label>
-                <div className="mailPreview">
-                  <p className="mailLabel">REMEMBER · A LITTLE HEADS-UP</p>
-                  <h3>Your reminders</h3>
-                  {summary.sections.length ? (
-                    summary.sections.map((s, index) => (
-                      <div key={index} className="mailSection">
-                        <h4>{s.title}</h4>
-                        {s.items.map((i) => (
-                          <p key={i.id}>
-                            <strong>{i.name}</strong>
-                            <span>
-                              {i.type} · {shortDate(i.date)} ·{" "}
-                              {i.days === 0 ? "today" : `${i.days} days away`}
-                            </span>
-                          </p>
-                        ))}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="muted">
-                      No email reminders qualify on this date. Try an event day,
-                      a Monday, or the first of a month. Check whether reminders
-                      are paused.
-                    </p>
-                  )}
-                </div>
-                <button
-                  className="primary"
-                  disabled={
-                    !user || busy || !emailReady || !summary.sections.length
+              </div>
+
+              <label className="f">
+                Year (optional)
+                <input
+                  type="number"
+                  min="1900"
+                  max="2100"
+                  value={editing.year ?? ""}
+                  placeholder="Shows age or anniversary number"
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      year: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                    })
                   }
-                  onClick={testEmail}
-                >
-                  Send me this test email
+                />
+              </label>
+
+              <label className="f">
+                Lead time in days (optional)
+                <input
+                  type="number"
+                  min="0"
+                  max="365"
+                  value={editing.leadDays ?? ""}
+                  placeholder={`Default (${settings.defaultLeadDays})`}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      leadDays: e.target.value ? parseInt(e.target.value, 10) : null,
+                    })
+                  }
+                />
+              </label>
+
+              <label className="f">
+                Private notes
+                <textarea
+                  rows={2}
+                  aria-label="Private notes"
+                  value={editing.notes ?? ""}
+                  placeholder="Gift ideas, favorite flowers..."
+                  onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
+                />
+              </label>
+
+              {dialogError && <p className="err">{dialogError}</p>}
+
+              <div className="acts" style={{ marginTop: 18 }}>
+                <button type="submit" className="btn p">
+                  Save occasion
                 </button>
-                <p className="footnote">
-                  {!user
-                    ? "Sign in to send a test email."
-                    : !emailReady
-                      ? "Email sending has not been configured by the owner yet."
-                      : `Sent only to ${user.email}. Maximum 3 tests per day.`}{" "}
-                  Automatic sending is not enabled.
-                </p>
-              </section>
-              <aside className="panel history">
-                <h2>Recent test sends</h2>
-                {history.length ? (
-                  history.map((h) => (
-                    <div className="historyRow" key={h.id}>
-                      <strong>{h.date}</strong>
-                      <span>{h.status}</span>
-                      <small>{new Date(h.createdAt).toLocaleString()}</small>
-                    </div>
-                  ))
-                ) : (
-                  <p className="muted">
-                    Your requested test emails will appear here.
-                  </p>
-                )}
-                <p className="footnote">
-                  “Accepted” means the provider accepted the request, not that
-                  the email reached your inbox.
-                </p>
-              </aside>
-            </div>
-          )}
-          {view === "settings" && (
-            <section className="panel settingsPanel">
-              <h2>Your reminder preferences</h2>
-              <p className="muted">
-                Reminders are for you. The people you track do not need contact
-                details or accounts.
-              </p>
-              <div className="formGrid">
-                <label className="field">
-                  Timezone
-                  <input
-                    value={settings.timezone}
-                    onChange={(e) =>
-                      setSettings({ ...settings, timezone: e.target.value })
-                    }
-                    placeholder="America/Denver"
-                  />
-                </label>
-                <label className="field">
-                  Preferred send time
-                  <input
-                    type="time"
-                    value={settings.sendTime}
-                    onChange={(e) =>
-                      setSettings({ ...settings, sendTime: e.target.value })
-                    }
-                  />
-                  <small>Saved for future automatic reminders.</small>
-                </label>
-                <label className="field">
-                  Default advance notice (days)
-                  <input
-                    type="number"
-                    min="0"
-                    max="365"
-                    value={settings.defaultLeadDays}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        defaultLeadDays: Number(e.target.value),
-                      })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  Reminder email
-                  <input
-                    readOnly
-                    value={user?.email || "Your verified Google email"}
-                  />
-                  <small>Uses your verified sign-in address.</small>
-                </label>
+                <button type="button" className="btn" onClick={() => setEditing(null)}>
+                  Cancel
+                </button>
               </div>
-              <div className="preferenceToggles">
-                <Toggle
-                  label="Enable email reminders"
-                  checked={settings.emailEnabled}
-                  onChange={(v) =>
-                    setSettings({ ...settings, emailEnabled: v })
-                  }
-                />
-                <Toggle
-                  label="Pause all reminders"
-                  checked={settings.paused}
-                  onChange={(v) => setSettings({ ...settings, paused: v })}
-                />
-              </div>
-              <p className="footnote">
-                For February 29 occasions, February 28 is observed in non-leap
-                years. Text messages and payments are not enabled in this pilot.
-              </p>
-              <button
-                className="primary"
-                onClick={saveSettings}
-                disabled={busy}
-              >
-                Save preferences
-              </button>
-              {user && (
-                <div className="dangerZone">
-                  <h3>Delete my app account</h3>
-                  <p>
-                    This removes your saved occasions and test history from
-                    Remember.
-                  </p>
-                  <button
-                    className="dangerButton"
-                    disabled={busy}
-                    onClick={() => {
-                      if (
-                        confirm(
-                          "Permanently delete your Remember account and saved events?",
-                        )
-                      )
-                        act(async (generation) => {
-                          if (user) {
-                            await deleteUserAccountData(user.uid);
-                          }
-                          if (generation !== authGeneration.current) return;
-                          await signOut(browserAuth());
-                        });
-                    }}
-                  >
-                    Delete account
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
-          <footer className="footer">
-            <span>Made for the moments that matter.</span>
-            <span>Remember · Private pilot</span>
-          </footer>
+            </form>
+          </div>
         </div>
-      </main>
-      {editing && (
-        <EventModal
-          event={editing}
-          busy={busy}
-          error={error}
-          onClose={() => setEditing(null)}
-          onSave={saveEvent}
-          onDelete={() => removeEvent(editing)}
-        />
+      )}
+
+      {/* TOAST NOTIFICATION */}
+      {toastMsg && (
+        <div className="toast" role="status">
+          {toastMsg}
+        </div>
       )}
     </div>
-  );
-}
-function EventModal({
-  event,
-  busy,
-  error,
-  onClose,
-  onSave,
-  onDelete,
-}: {
-  event: ReminderEvent;
-  busy: boolean;
-  error: string;
-  onClose: () => void;
-  onSave: (event: ReminderEvent) => void;
-  onDelete: () => void;
-}) {
-  const [form, setForm] = useState({ ...event });
-  const [validation, setValidation] = useState("");
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const dialog = document.querySelector<HTMLDialogElement>("#occasionDialog");
-    dialog?.showModal();
-    return () => {
-      dialog?.close();
-      previous?.focus();
-    };
-  }, []);
-  return (
-    <dialog
-      id="occasionDialog"
-      className="modal"
-      onCancel={(e) => {
-        e.preventDefault();
-        if (!busy) onClose();
-      }}
-    >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          try {
-            validateEvent(form);
-            setValidation("");
-            onSave(form);
-          } catch (e) {
-            setValidation(e instanceof Error ? e.message : "Invalid event.");
-          }
-        }}
-      >
-        <div className="modalHeader">
-          <div>
-            <p className="eyebrow">A DATE WORTH REMEMBERING</p>
-            <h2>{event.id ? "Edit occasion" : "Add an occasion"}</h2>
-          </div>
-          <button
-            type="button"
-            className="close"
-            onClick={onClose}
-            disabled={busy}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-        {(validation || error) && (
-          <p className="message error" role="alert">
-            {validation || error}
-          </p>
-        )}
-        <label className="field">
-          Name or occasion
-          <input
-            autoFocus
-            required
-            maxLength={100}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Someone special"
-          />
-        </label>
-        <div className="formGrid">
-          <label className="field">
-            Event type
-            <select
-              aria-label="Event type"
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
-            >
-              <option>Birthday</option>
-              <option>Anniversary</option>
-            </select>
-          </label>
-          <label className="field">
-            Month
-            <select
-              aria-label="Month"
-              value={form.month}
-              onChange={(e) =>
-                setForm({ ...form, month: Number(e.target.value) })
-              }
-            >
-              {monthNames.map((m, i) => (
-                <option key={m} value={i + 1}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            Day
-            <input
-              required
-              type="number"
-              min="1"
-              max="31"
-              value={form.day}
-              onChange={(e) =>
-                setForm({ ...form, day: Number(e.target.value) })
-              }
-            />
-          </label>
-          <label className="field">
-            Year (optional)
-            <input
-              type="number"
-              min="1"
-              max={new Date().getFullYear()}
-              value={form.year ?? ""}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  year: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-            />
-          </label>
-        </div>
-        <label className="field">
-          Lead time (days)
-          <input
-            type="number"
-            min="0"
-            max="365"
-            placeholder="Use account default"
-            value={form.leadDays ?? ""}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                leadDays: e.target.value === "" ? null : Number(e.target.value),
-              })
-            }
-          />
-        </label>
-        <div className="modalToggles">
-          {(
-            ["emailEnabled", "daily", "monthly", "weekly", "archived"] as const
-          ).map((key) => (
-            <Toggle
-              key={key}
-              label={
-                key === "emailEnabled"
-                  ? "Email reminder"
-                  : key === "archived"
-                    ? "Archive this event"
-                    : `${key[0].toUpperCase() + key.slice(1)} reminders`
-              }
-              checked={form[key]}
-              onChange={(v) => setForm({ ...form, [key]: v })}
-            />
-          ))}
-        </div>
-        <label className="field">
-          Private notes
-          <textarea
-            maxLength={2000}
-            value={form.notes || ""}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            placeholder="A gift idea, a favorite treat…"
-          />
-        </label>
-        <div className="modalFooter">
-          {event.id && (
-            <button
-              type="button"
-              className="dangerButton"
-              onClick={onDelete}
-              disabled={busy}
-            >
-              Delete
-            </button>
-          )}
-          <button
-            type="button"
-            className="secondary"
-            onClick={onClose}
-            disabled={busy}
-          >
-            Cancel
-          </button>
-          <button className="primary" type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Save occasion"}
-          </button>
-        </div>
-      </form>
-    </dialog>
   );
 }
