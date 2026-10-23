@@ -159,10 +159,9 @@ export async function handler(event, context) {
       const currentMonth = today.getUTCMonth() + 1;
       const currentDay = today.getUTCDate();
 
-      // Find events within lead days (e.g. 7 days or matching leadDays)
+      // Find events within lead days or matching configured checkpoints
       const dueEvents = [];
       for (const e of events) {
-        const lead = e.leadDays !== undefined ? e.leadDays : 7;
         // Simple day calculation for target occasion
         const occasionDate = new Date(Date.UTC(today.getUTCFullYear(), e.month - 1, e.day));
         if (occasionDate < today) {
@@ -170,7 +169,15 @@ export async function handler(event, context) {
         }
         const diffDays = Math.round((occasionDate - today) / (1000 * 60 * 60 * 24));
 
-        if (diffDays <= lead && diffDays >= 0) {
+        let qualifies = false;
+        if (Array.isArray(e.checkpoints) && e.checkpoints.length > 0) {
+          qualifies = e.checkpoints.includes(diffDays);
+        } else {
+          const lead = e.leadDays !== undefined && e.leadDays !== null ? e.leadDays : 7;
+          qualifies = diffDays <= lead && diffDays >= 0;
+        }
+
+        if (qualifies) {
           dueEvents.push({ ...e, days: diffDays });
         }
       }

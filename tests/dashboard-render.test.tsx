@@ -19,4 +19,11 @@ describe("Dashboard UI Component", () => {
     expect(screen.getByLabelText(/Remember home/i)).toBeDefined();
     expect(screen.getByRole("button", { name: /Overview/i })).toBeDefined();
   });
+
+  it("does not render technical pipeline cards on overview", () => {
+    render(<Dashboard />);
+    expect(screen.queryByText(/Delivery Pipeline/i)).toBeNull();
+    expect(screen.queryByText(/Alerts today/i)).toBeNull();
+  });
 });
+

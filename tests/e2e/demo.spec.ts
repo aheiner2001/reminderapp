@@ -18,12 +18,22 @@ test("demo supports add, edit, preview, settings and mobile navigation", async (
   // Open Add event modal
   await page.getByRole("button", { name: "Add event" }).click();
   await page.getByLabel("Name").fill("Maya Test");
+
+  // Select custom type
+  await page.getByLabel("Type").selectOption("__custom_new__");
+  await page.getByPlaceholder(/Graduation, Memorial/i).fill("Graduation");
+
   await page.getByLabel("Month").selectOption("1");
   await page.getByRole("spinbutton", { name: "Day", exact: true }).fill("15");
+
+  // Checkpoint pills test
+  await expect(page.getByRole("button", { name: /1 week before/i })).toBeVisible();
+
   await page.getByRole("button", { name: "Save occasion" }).click();
 
-  // Verify event shows in Upcoming list
+  // Verify event shows in Upcoming list with custom tag
   await expect(page.getByText("Maya Test").first()).toBeVisible();
+  await expect(page.getByText("Graduation").first()).toBeVisible();
 
   // Switch to Events tab
   await page.getByRole("button", { name: "Events" }).click();

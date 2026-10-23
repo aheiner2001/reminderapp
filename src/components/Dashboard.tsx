@@ -65,6 +65,8 @@ export default function Dashboard() {
   const [toastTimer, setToastTimer] = useState<any>(null);
   const [editing, setEditing] = useState<ReminderEvent | null>(null);
   const [dialogError, setDialogError] = useState("");
+  const [newTypeName, setNewTypeName] = useState("");
+  const [isAddingCustomType, setIsAddingCustomType] = useState(false);
   const [armedDelete, setArmedDelete] = useState<string | null>(null);
   const [history, setHistory] = useState<Delivery[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -132,7 +134,7 @@ export default function Dashboard() {
     loadData(user)
       .then((data) => {
         if (current) {
-          setEvents(data.events.length > 0 ? data.events : demos);
+          setEvents(data.events || []);
           setSettings(data.settings);
           setHistory(data.history || []);
           const now = localDate(new Date(), data.settings.timezone);
@@ -176,6 +178,26 @@ export default function Dashboard() {
   async function saveOccasion(value: ReminderEvent) {
     await act(async (generation) => {
       const validated = validateEvent(value);
+
+      // If a new custom type was used that isn't yet in settings.customTypes or built-ins, save it
+      const builtIns = ["Birthday", "Anniversary"];
+      const currentCustoms = settings.customTypes || [];
+      if (
+        !builtIns.includes(validated.type) &&
+        !currentCustoms.includes(validated.type)
+      ) {
+        const updatedCustoms = [...currentCustoms, validated.type];
+        const updatedSettings = { ...settings, customTypes: updatedCustoms };
+        setSettings(updatedSettings);
+        if (user) {
+          try {
+            await persistSettings(user.uid, updatedSettings);
+          } catch {
+            // best effort persist
+          }
+        }
+      }
+
       let saved: ReminderEvent | null = null;
       if (user) {
         try {
@@ -283,7 +305,15 @@ export default function Dashboard() {
             className="btn p"
             onClick={() => {
               setDialogError("");
-              setEditing({ ...blankEvent, month: new Date().getMonth() + 1, day: 1 });
+              setIsAddingCustomType(false);
+              setNewTypeName("");
+              setEditing({
+                ...blankEvent,
+                month: new Date().getMonth() + 1,
+                day: 1,
+                checkpoints: [30, 7, 1, 0],
+                remindTime: settings.sendTime || "09:00",
+              });
             }}
           >
             Add event
@@ -341,11 +371,11 @@ export default function Dashboard() {
         <section>
           <div className="stats">
             <div className="stat">
-              <span>Active events</span>
+              <span>Active occasions</span>
               <b>{items.length}</b>
             </div>
             <div className="stat">
-              <span>Next up</span>
+              <span>Next celebration</span>
               <b>{nextUp ? (nextUp.days === 0 ? "Today" : `in ${nextUp.days} days`) : "None"}</b>
               <small>
                 {nextUp
@@ -354,89 +384,124 @@ export default function Dashboard() {
               </small>
             </div>
             <div className="stat">
-              <span>Alerts today</span>
+              <span>Due in 30 days</span>
               <b>
                 {
-                  items.filter((x) => {
-                    const orig = events.find((e) => e.id === x.id);
-                    return x.days <= (orig?.leadDays ?? settings.defaultLeadDays);
-                  }).length
+                  items.filter((x) => x.days <= 30).length
                 }
               </b>
-              <small>{settings.paused || !settings.emailEnabled ? "Email is off" : `Email at ${settings.sendTime}`}</small>
-            </div>
-            <div className="stat">
-              <span>Delivery Pipeline</span>
-              <b>AWS EventBridge</b>
-              <small>SES Automated Daily</small>
+              <small>{items.filter((x) => x.days <= 7).length} due this week</small>
             </div>
           </div>
 
-          <div className="card">
-            <h2>Upcoming</h2>
-            <div className="chips">
-              {[
-                ["all", "All"],
-                ["Birthday", "Birthdays"],
-                ["Anniversary", "Anniversaries"],
-              ].map(([k, label]) => (
+          {events.length === 0 ? (
+            <div className="emptyState">
+              <h3>No occasions added yet</h3>
+              <p>
+                Start fresh by adding your loved ones’ birthdays, anniversaries, or important annual dates.
+              </p>
+              <div className="acts" style={{ justifyContent: "center" }}>
                 <button
-                  key={k}
-                  className={filter === k ? "on" : ""}
-                  onClick={() => setFilter(k)}
+                  className="btn p"
+                  onClick={() => {
+                    setDialogError("");
+                    setIsAddingCustomType(false);
+                    setNewTypeName("");
+                    setEditing({
+                      ...blankEvent,
+                      month: new Date().getMonth() + 1,
+                      day: 1,
+                      checkpoints: [30, 7, 1, 0],
+                      remindTime: settings.sendTime || "09:00",
+                    });
+                  }}
                 >
-                  {label}
+                  + Add your first occasion
                 </button>
-              ))}
+                <button
+                  className="btn"
+                  onClick={() => {
+                    demos.forEach((d) => saveOccasion(d));
+                  }}
+                >
+                  Load sample occasions
+                </button>
+              </div>
             </div>
+          ) : (
+            <div className="card">
+              <h2>Upcoming</h2>
+              <div className="chips">
+                {[
+                  ["all", "All"],
+                  ...Array.from(new Set(events.map((e) => e.type))).map((t) => [
+                    t,
+                    t === "Birthday" ? "Birthdays" : t === "Anniversary" ? "Anniversaries" : t,
+                  ]),
+                ].map(([k, label]) => (
+                  <button
+                    key={k}
+                    className={filter === k ? "on" : ""}
+                    onClick={() => setFilter(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-            {items
-              .filter((x) => filter === "all" || x.type === filter)
-              .map((x) => {
-                const orig = events.find((e) => e.id === x.id);
-                const isDueSoon = x.days <= (orig?.leadDays ?? settings.defaultLeadDays);
-                const parts = x.date.split("-");
-                const mIdx = parseInt(parts[1], 10) - 1;
-                const dNum = parseInt(parts[2], 10);
-                const numText = x.number
-                  ? x.type === "Anniversary"
-                    ? ` (${ord(x.number)} anniversary)`
-                    : ` (turning ${x.number})`
-                  : "";
+              {items
+                .filter((x) => filter === "all" || x.type === filter)
+                .map((x) => {
+                  const orig = events.find((e) => e.id === x.id);
+                  const isDueSoon = x.days <= (orig?.leadDays ?? settings.defaultLeadDays);
+                  const parts = x.date.split("-");
+                  const mIdx = parseInt(parts[1], 10) - 1;
+                  const dNum = parseInt(parts[2], 10);
+                  const numText = x.number
+                    ? x.type === "Anniversary"
+                      ? ` (${ord(x.number)} anniversary)`
+                      : ` (turning ${x.number})`
+                    : "";
 
-                return (
-                  <div className="row" key={x.id}>
-                    <div className="dt">
-                      <span>{MN[mIdx]?.slice(0, 3)}</span>
-                      <b>{dNum}</b>
+                  return (
+                    <div className="row" key={x.id}>
+                      <div className="dt">
+                        <span>{MN[mIdx]?.slice(0, 3)}</span>
+                        <b>{dNum}</b>
+                      </div>
+                      <div className="grow">
+                        <b>{x.name}</b>
+                        <span>{numText}</span>
+                        <br />
+                        <span className={`tag ${x.type}`}>{x.type}</span>
+                        <small style={{ display: "inline" }}>
+                          {orig?.emailEnabled ? "Email on" : "In-app only"}
+                          {orig?.remindTime ? ` at ${orig.remindTime}` : ""}
+                        </small>
+                      </div>
+                      <span className={`pill ${isDueSoon ? "hot" : ""}`}>
+                        {x.days === 0 ? "Today" : x.days === 1 ? "Tomorrow" : `in ${x.days} days`}
+                      </span>
+                      <button
+                        className="btn"
+                        style={{ padding: "4px 8px", fontSize: "12px", marginLeft: 8 }}
+                        aria-label={`Edit ${x.name}`}
+                        onClick={() => {
+                          const orig = events.find((e) => e.id === x.id);
+                          if (orig) {
+                            setIsAddingCustomType(false);
+                            setNewTypeName("");
+                            setEditing(orig);
+                          }
+                        }}
+                      >
+                        Edit ↗
+                      </button>
                     </div>
-                    <div className="grow">
-                      <b>{x.name}</b>
-                      <span>{numText}</span>
-                      <br />
-                      <span className={`tag ${x.type}`}>{x.type}</span>
-                      <small style={{ display: "inline" }}>
-                        {orig?.emailEnabled ? "Email on" : "In-app only"}
-                      </small>
-                    </div>
-                    <span className={`pill ${isDueSoon ? "hot" : ""}`}>
-                      {x.days === 0 ? "Today" : x.days === 1 ? "Tomorrow" : `in ${x.days} days`}
-                    </span>
-                    <button
-                      className="btn"
-                      style={{ padding: "4px 8px", fontSize: "12px", marginLeft: 8 }}
-                      aria-label={`Edit ${x.name}`}
-                      onClick={() => {
-                        const orig = events.find((e) => e.id === x.id);
-                        if (orig) setEditing(orig);
-                      }}
-                    >
-                      Edit ↗
-                    </button>
-                  </div>
-                );
-              })}
-          </div>
+                  );
+                })}
+            </div>
+          )}
         </section>
       )}
 
@@ -819,16 +884,50 @@ export default function Dashboard() {
               <label className="f">
                 Type
                 <select
-                  value={editing.type}
-                  onChange={(e) =>
-                    setEditing({ ...editing, type: e.target.value as "Birthday" | "Anniversary" | "Custom" })
-                  }
+                  value={isAddingCustomType ? "__custom_new__" : editing.type}
+                  onChange={(e) => {
+                    if (e.target.value === "__custom_new__") {
+                      setIsAddingCustomType(true);
+                      setNewTypeName("");
+                    } else {
+                      setIsAddingCustomType(false);
+                      setEditing({ ...editing, type: e.target.value });
+                    }
+                  }}
                 >
                   <option value="Birthday">Birthday</option>
                   <option value="Anniversary">Anniversary</option>
-                  <option value="Custom">Custom</option>
+                  {(settings.customTypes || [])
+                    .filter((t) => t !== "Birthday" && t !== "Anniversary")
+                    .map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  {editing.type &&
+                    editing.type !== "Birthday" &&
+                    editing.type !== "Anniversary" &&
+                    !(settings.customTypes || []).includes(editing.type) && (
+                      <option value={editing.type}>{editing.type}</option>
+                    )}
+                  <option value="__custom_new__">+ Add custom type...</option>
                 </select>
               </label>
+
+              {isAddingCustomType && (
+                <label className="f">
+                  Custom occasion name
+                  <input
+                    value={newTypeName}
+                    placeholder="e.g. Graduation, Memorial, Pet Birthday"
+                    autoFocus
+                    onChange={(e) => {
+                      setNewTypeName(e.target.value);
+                      setEditing({ ...editing, type: e.target.value || "Custom" });
+                    }}
+                  />
+                </label>
+              )}
 
               <div className="two">
                 <label className="f">
@@ -857,25 +956,71 @@ export default function Dashboard() {
                 </label>
               </div>
 
-              <label className="f">
-                Year (optional)
-                <input
-                  type="number"
-                  min="1900"
-                  max="2100"
-                  value={editing.year ?? ""}
-                  placeholder="Shows age or anniversary number"
-                  onChange={(e) =>
-                    setEditing({
-                      ...editing,
-                      year: e.target.value ? parseInt(e.target.value, 10) : undefined,
-                    })
-                  }
-                />
-              </label>
+              <div className="two">
+                <label className="f">
+                  Year (optional)
+                  <input
+                    type="number"
+                    min="1900"
+                    max="2100"
+                    value={editing.year ?? ""}
+                    placeholder="Shows age or milestone"
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        year: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                      })
+                    }
+                  />
+                </label>
+                <label className="f">
+                  Reminder time
+                  <input
+                    type="time"
+                    value={editing.remindTime ?? settings.sendTime ?? "09:00"}
+                    onChange={(e) => setEditing({ ...editing, remindTime: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="f">
+                <span>Reminder checkpoints</span>
+                <div className="checkpointPills" role="group" aria-label="Reminder checkpoints">
+                  {[
+                    { days: 30, label: "1 month before" },
+                    { days: 14, label: "2 weeks before" },
+                    { days: 7, label: "1 week before" },
+                    { days: 1, label: "1 day before" },
+                    { days: 0, label: "Day of" },
+                  ].map(({ days, label }) => {
+                    const currentCheckpoints = editing.checkpoints || [30, 7, 1, 0];
+                    const active = currentCheckpoints.includes(days);
+                    return (
+                      <button
+                        key={days}
+                        type="button"
+                        className={`checkpointPill ${active ? "active" : ""}`}
+                        aria-pressed={active}
+                        onClick={() => {
+                          const updated = active
+                            ? currentCheckpoints.filter((d) => d !== days)
+                            : [...currentCheckpoints, days].sort((a, b) => b - a);
+                          setEditing({ ...editing, checkpoints: updated });
+                        }}
+                      >
+                        {active ? "✓ " : "+ "}
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <small style={{ marginTop: 4 }}>
+                  Choose all advance milestones when you want to be alerted.
+                </small>
+              </div>
 
               <label className="f">
-                Lead time in days (optional)
+                Lead time in days (optional fallback)
                 <input
                   type="number"
                   min="0"

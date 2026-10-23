@@ -231,8 +231,8 @@ header h1 {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
   margin-bottom: 20px;
 }
 
@@ -336,8 +336,8 @@ header h1 {
   padding: 1px 9px;
   border-radius: 99px;
   margin-right: 6px;
-  background: color-mix(in srgb, var(--c) 16%, transparent);
-  color: var(--c);
+  background: color-mix(in srgb, var(--c, #3b82f6) 16%, transparent);
+  color: var(--c, #1f4e8c);
 }
 
 .tag.Birthday,
@@ -348,6 +348,58 @@ header h1 {
 .tag.Anniversary,
 .tag.a {
   --c: var(--an);
+}
+
+.checkpointPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.checkpointPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--ln);
+  border-radius: 99px;
+  background: var(--sf);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.checkpointPill.active {
+  background: color-mix(in srgb, var(--pr) 12%, transparent);
+  border-color: var(--pr);
+  color: var(--pr);
+  font-weight: 700;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 48px 20px;
+  background: var(--sf);
+  border-radius: 14px;
+  box-shadow: var(--sh);
+  border: 1.5px dashed var(--ln);
+  margin-bottom: 20px;
+}
+
+.emptyState h3 {
+  font-size: 20px;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+
+.emptyState p {
+  color: var(--mu);
+  font-size: 14px;
+  max-width: 440px;
+  margin: 0 auto 20px;
 }
 
 .pill {
@@ -554,11 +606,13 @@ label.f textarea {
   position: fixed;
   inset: 0;
   background: rgba(10, 20, 30, 0.5);
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   z-index: 100;
   padding: 16px;
   backdrop-filter: blur(2px);
+  overflow-y: auto;
 }
 
 .modalContent {
@@ -567,7 +621,10 @@ label.f textarea {
   border-radius: 14px;
   padding: 24px;
   width: min(480px, 96vw);
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  margin: auto;
 }
 
 .err {
