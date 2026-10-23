@@ -3,9 +3,9 @@ import {
   GET as profile,
   PUT as settings,
   DELETE as deleteAccount,
-} from "../app/api/profile/route";
-import { POST as save, DELETE as remove } from "../app/api/events/route";
-import { POST as email } from "../app/api/test-email/route";
+} from "../src/api/profile/route";
+import { POST as save, DELETE as remove } from "../src/api/events/route";
+import { POST as email } from "../src/api/test-email/route";
 describe("protected API boundaries", () => {
   for (const [name, handler, method] of [
     ["profile", profile, "GET"],

@@ -1,34 +1,80 @@
 # Remember — birthday & anniversary reminders
 
-A private pilot web app for remembering the people who matter.
+A beautifully crafted, minimalist web app for remembering the birthdays and anniversaries of the people who matter most.
 
-## Run
-Use Node 24. Run `npm ci`, copy `.env.example` to `.env.local`, then `npm run dev`.
-The signed-out demo works without server secrets. Private saved events require Firebase Admin credentials and `TESTER_EMAILS`. Configure `resend_api_key` and `RESEND_FROM_EMAIL` for explicit test emails.
+---
 
-## Check
-`npm run typecheck` · `npm test` · `npm run build` · `npm run test:e2e`
+## 🚀 Live Website on GitHub Pages
 
-GitHub Actions runs the checks on pushes and PRs. Import the repository into Vercel for deployments; see [deployment setup](docs/DEPLOYMENT.md).
+The app builds as a static Next.js export and deploys directly to **GitHub Pages** using GitHub Actions.
 
-## Implemented
-- Responsive dashboard and mobile event settings
-- Google sign-in and server-enforced private tester access
-- Birthday/anniversary create, edit, archive and delete
-- Monthly, weekly, advance and daily countdown previews
-- Per-event email preferences and global pause
-- Explicit Resend test sends to the signed-in user, with a daily cap and history
+### How to enable GitHub Pages in your repository:
+1. Go to your GitHub repository: `https://github.com/aheiner2001/reminderapp` (or your fork).
+2. Click **Settings** → **Pages** (in the left sidebar).
+3. Under **Build and deployment** → **Source**, select **GitHub Actions**.
+4. Push to `main` (or run the **Deploy to GitHub Pages** workflow in the Actions tab).
+5. Your website will be live at:
+   ```
+   https://<your-username>.github.io/reminderapp/
+   ```
 
-**Automatic email, SMS, push notifications and payments are not enabled yet.** Test email acceptance does not guarantee inbox delivery.
+---
 
-## Project documents
-- [Full specification](docs/superpowers/specs/2026-10-02-birthday-reminder-design.md)
-- [TODO and future roadmap](TODO.md)
-- [Deployment implementation plan](docs/superpowers/plans/2026-10-02-testing-deployment.md)
-- [Original mockups](docs/mockups/README.md)
+## 🎨 Craft-Focused UI (Non-AI-Slop)
 
-Do not commit invited email addresses or server credentials. The sandbox Firebase web config is public; it does not grant Admin access.
+- Clean, tactile, editorial aesthetic inspired by Things 3 and Linear.
+- Chronological countdown cards with relative badges (`Today`, `In 3 days`, `In 2 weeks`).
+- Category badges for Birthdays, Anniversaries, and Custom occasions.
+- Interactive modal for quick occasion additions with customizable reminder lead times (Day-of, 3 days, 7 days, 14 days, 30 days).
+- In-browser email digest preview showing exactly what scheduled reminder emails will look like.
 
-## Branches
+---
 
-`main` is the canonical app and deployment branch. The former `feat/reminder-app` implementation and `cursor/family-reminder-design-0123` proposal were merged into main. Use main for Vercel imports and future work; old branches contain historical snapshots. The September family/Supabase proposal is archived, and the October Firebase design is authoritative.
+## 💾 Firebase Client Storage
+
+- **Google Sign-In**: Uses Firebase Auth directly from the browser.
+- **Client Firestore Sync**: Directly reads and writes user occasions and preferences to `reminderUsers/{uid}/events` and `reminderUsers/{uid}/profile/settings`.
+- **Preview Demo Mode**: If signed out, allows instant offline exploration with preloaded demo occasions.
+- **Security Rules**: Configured in [firestore.rules](firestore.rules) to ensure authenticated users can only access their own records.
+
+---
+
+## ✉️ Automated Reminder Delivery: AWS EventBridge + Lambda + SES
+
+Automated daily reminders are handled independently by an AWS worker:
+- **AWS EventBridge**: Triggers daily on a cron schedule (e.g. 9:00 AM).
+- **AWS Lambda**: Queries Firestore for users with due occasions and builds a mobile-friendly HTML digest.
+- **AWS SES**: Sends email notifications to recipients from your verified email address.
+- Full step-by-step setup instructions are in **[lambda/README.md](lambda/README.md)**.
+
+---
+
+## 🛠️ Local Development & Testing
+
+1. Use Node 24 (`v24.x`).
+2. Install dependencies:
+   ```bash
+   npm ci
+   ```
+3. Run local dev server:
+   ```bash
+   npm run dev
+   ```
+4. Run full test suite & typecheck:
+   ```bash
+   npm run typecheck
+   npm test
+   ```
+5. Test static export production build:
+   ```bash
+   npm run build
+   ```
+   *(Generates static assets in `out/`)*.
+
+---
+
+## 📚 Project Documentation
+
+- [Design Spec](docs/superpowers/specs/2026-10-23-github-pages-aws-reminder-design.md)
+- [Implementation Plan](docs/superpowers/plans/2026-10-23-github-pages-aws-reminder.md)
+- [AWS Worker Guide](lambda/README.md)

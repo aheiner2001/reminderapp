@@ -91,12 +91,12 @@ vi.mock("resend", () => ({
     };
   },
 }));
-import { POST as save, DELETE as remove } from "../app/api/events/route";
+import { POST as save, DELETE as remove } from "../src/api/events/route";
 import {
   GET as profile,
   DELETE as deleteAccount,
-} from "../app/api/profile/route";
-import { POST as send } from "../app/api/test-email/route";
+} from "../src/api/profile/route";
+import { POST as send } from "../src/api/test-email/route";
 import { blankEvent, defaultSettings } from "../src/lib/reminders";
 function req(token = "alpha", method = "POST", body: unknown = {}) {
   return new Request("https://example.com/api", {
