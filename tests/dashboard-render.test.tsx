@@ -17,6 +17,6 @@ describe("Dashboard UI Component", () => {
   it("renders brand header and navigation", () => {
     render(<Dashboard />);
     expect(screen.getByLabelText(/Remember home/i)).toBeDefined();
-    expect(screen.getByRole("button", { name: /Coming up/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Overview/i })).toBeDefined();
   });
 });
