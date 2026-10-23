@@ -319,17 +319,16 @@ export default function Dashboard() {
       {/* Navigation tabs */}
       <nav className="tabs" aria-label="Main navigation">
         {[
-          ["over", "Coming up", "Overview"],
-          ["ev", "Events", "Events"],
-          ["pre", "Preview", "Preview"],
-          ["his", "History", "History"],
-          ["set", "Settings", "Settings"],
-        ].map(([key, label, title]) => (
+          ["over", "Overview"],
+          ["ev", "Events"],
+          ["pre", "Preview"],
+          ["his", "History"],
+          ["set", "Settings"],
+        ].map(([key, title]) => (
           <button
             key={key}
             className={tab === key ? "on" : ""}
             onClick={() => setTab(key as Tab)}
-            aria-label={label}
             aria-current={tab === key ? "page" : undefined}
           >
             {title}

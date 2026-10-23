@@ -12,7 +12,7 @@ export default defineConfig({
       : {},
   },
   webServer: {
-    command: "npm start -- --hostname 127.0.0.1 --port 33513",
+    command: "npx serve out -l 33513",
     url: "http://127.0.0.1:33513",
     reuseExistingServer: !process.env.CI,
     timeout: 60000,
