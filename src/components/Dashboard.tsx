@@ -15,6 +15,12 @@ import {
   deleteUserEvent,
   saveUserSettings as persistSettings,
   deleteUserAccountData,
+  createGroupCircle,
+  joinGroupByCode,
+  fetchUserGroups,
+  fetchGroupOccasions,
+  saveUserWishlist,
+  fetchUserWishlist,
 } from "../lib/firebase/storage";
 import {
   blankEvent,
@@ -23,12 +29,16 @@ import {
   localDate,
   upcoming,
   validateEvent,
+  nextOccurrence,
+  daysBetween,
   type ReminderEvent,
   type Settings,
+  type GroupCircle,
+  type WishlistItem,
 } from "../lib/reminders";
 import { validateSettings } from "../lib/access";
 
-type Tab = "over" | "ev" | "pre" | "his" | "set";
+type Tab = "over" | "ev" | "gro" | "pre" | "his" | "set";
 type Delivery = { id: string; date: string; status: string; createdAt: string; attempts?: number };
 
 const MN = [
@@ -43,6 +53,21 @@ const demos: ReminderEvent[] = [
   { ...blankEvent, id: "demo-4", name: "Taylor & Sam", type: "Anniversary", month: 11, day: 7, year: 2014, emailEnabled: true },
   { ...blankEvent, id: "demo-5", name: "Priya", type: "Birthday", month: 11, day: 14, leadDays: 3, emailEnabled: true },
   { ...blankEvent, id: "demo-6", name: "Alex & Jordan", type: "Anniversary", month: 12, day: 5, year: 2019, emailEnabled: false },
+];
+
+const demoGroups: GroupCircle[] = [
+  {
+    id: "demo-group-1",
+    name: "The Family",
+    code: "FAM778",
+    ownerUid: "demo-owner",
+    createdAt: new Date().toISOString(),
+    members: {
+      "demo-owner": { uid: "demo-owner", name: "You", email: "you@example.com", joinedAt: new Date().toISOString() },
+      "demo-2": { uid: "demo-2", name: "Grandma Joan", email: "joan@example.com", joinedAt: new Date().toISOString() },
+      "demo-3": { uid: "demo-3", name: "Maya", email: "maya@example.com", joinedAt: new Date().toISOString() },
+    },
+  },
 ];
 
 function ord(n: number) {
@@ -71,6 +96,20 @@ export default function Dashboard() {
   const [history, setHistory] = useState<Delivery[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
+  // Groups and Wishlists state
+  const [groups, setGroups] = useState<GroupCircle[]>(demoGroups);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("demo-group-1");
+  const [sharedGroupEvents, setSharedGroupEvents] = useState<{ event: ReminderEvent; memberName: string }[]>([]);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([
+    { id: "w-1", title: "Warm winter wool socks", notes: "Size M, forest green or charcoal", createdAt: new Date().toISOString() },
+    { id: "w-2", title: "Chemex Pour-Over Glass Coffee Maker", url: "https://example.com/chemex", notes: "6 cup classic", createdAt: new Date().toISOString() },
+  ]);
+  const [newWishTitle, setNewWishTitle] = useState("");
+  const [newWishUrl, setNewWishUrl] = useState("");
+  const [newWishNotes, setNewWishNotes] = useState("");
+
   function toast(msg: string) {
     setToastMsg(msg);
     if (toastTimer) clearTimeout(toastTimer);
@@ -93,6 +132,8 @@ export default function Dashboard() {
           setEvents(u ? [] : demos);
           setSettings(defaultSettings);
           setHistory([]);
+          setGroups(u ? [] : demoGroups);
+          setSelectedGroupId(u ? "" : "demo-group-1");
           setBusy(false);
           setToday(now);
           setPreviewDate(now);
@@ -132,7 +173,7 @@ export default function Dashboard() {
     }
 
     loadData(user)
-      .then((data) => {
+      .then(async (data) => {
         if (current) {
           setEvents(data.events || []);
           setSettings(data.settings);
@@ -140,6 +181,19 @@ export default function Dashboard() {
           const now = localDate(new Date(), data.settings.timezone);
           setToday(now);
           setPreviewDate(now);
+
+          // Fetch user's groups and wishlist
+          try {
+            const userGroups = await fetchUserGroups(user.uid);
+            setGroups(userGroups);
+            if (userGroups.length > 0 && !selectedGroupId) {
+              setSelectedGroupId(userGroups[0].id);
+            }
+            const wishes = await fetchUserWishlist(user.uid);
+            setWishlistItems(wishes);
+          } catch {
+            // non-fatal
+          }
         }
       })
       .catch((e) => {
@@ -351,6 +405,7 @@ export default function Dashboard() {
         {[
           ["over", "Overview"],
           ["ev", "Events"],
+          ["gro", "Groups"],
           ["pre", "Preview"],
           ["his", "History"],
           ["set", "Settings"],
@@ -629,6 +684,308 @@ export default function Dashboard() {
           <p className="note">
             Lead time controls daily countdowns and advance alerts. Monthly and weekly summaries compile automatically.
           </p>
+        </section>
+      )}
+
+      {/* GROUPS TAB */}
+      {tab === "gro" && (
+        <section>
+          <div className="groupGrid">
+            {/* Left sidebar: Group list & Join/Create */}
+            <div className="card">
+              <h2>Your Groups</h2>
+              <div className="groupList">
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    className={`groupItemBtn ${selectedGroupId === g.id ? "on" : ""}`}
+                    onClick={() => setSelectedGroupId(g.id)}
+                  >
+                    <div className="groupItemInfo">
+                      <b>{g.name}</b>
+                      <small>{Object.keys(g.members || {}).length} members · Code: <code>{g.code}</code></small>
+                    </div>
+                  </button>
+                ))}
+                {groups.length === 0 && (
+                  <p className="off">You haven't joined or created any groups yet.</p>
+                )}
+              </div>
+
+              <hr style={{ margin: "20px 0", border: 0, borderTop: "1px solid var(--ln)" }} />
+
+              <h3>Create a Group</h3>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newGroupName.trim()) return;
+                  await act(async () => {
+                    if (user) {
+                      const grp = await createGroupCircle(
+                        user.uid,
+                        user.displayName || user.email?.split("@")[0] || "User",
+                        user.email || "",
+                        newGroupName,
+                      );
+                      setGroups((prev) => [...prev, grp]);
+                      setSelectedGroupId(grp.id);
+                    } else {
+                      const demoGrp: GroupCircle = {
+                        id: crypto.randomUUID(),
+                        name: newGroupName.trim(),
+                        code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+                        ownerUid: "demo",
+                        createdAt: new Date().toISOString(),
+                        members: {
+                          demo: { uid: "demo", name: "You", email: "you@example.com", joinedAt: new Date().toISOString() },
+                        },
+                      };
+                      setGroups((prev) => [...prev, demoGrp]);
+                      setSelectedGroupId(demoGrp.id);
+                    }
+                    setNewGroupName("");
+                    toast(`Created group "${newGroupName}"!`);
+                  });
+                }}
+              >
+                <label className="f">
+                  Group name
+                  <input
+                    value={newGroupName}
+                    placeholder="e.g. The Heiner Family"
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                  />
+                </label>
+                <button type="submit" className="btn p" style={{ width: "100%", marginTop: 4 }}>
+                  Create group
+                </button>
+              </form>
+
+              <hr style={{ margin: "20px 0", border: 0, borderTop: "1px solid var(--ln)" }} />
+
+              <h3>Join with Code</h3>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!joinCodeInput.trim()) return;
+                  await act(async () => {
+                    if (user) {
+                      const grp = await joinGroupByCode(
+                        user.uid,
+                        user.displayName || user.email?.split("@")[0] || "User",
+                        user.email || "",
+                        joinCodeInput.trim(),
+                      );
+                      setGroups((prev) => (prev.some((g) => g.id === grp.id) ? prev : [...prev, grp]));
+                      setSelectedGroupId(grp.id);
+                      toast(`Joined "${grp.name}"!`);
+                    } else {
+                      toast(`Demo: Code "${joinCodeInput.toUpperCase()}" accepted! Sign in to join live Firestore circles.`);
+                    }
+                    setJoinCodeInput("");
+                  });
+                }}
+              >
+                <label className="f">
+                  Invite code
+                  <input
+                    value={joinCodeInput}
+                    placeholder="e.g. FAM778"
+                    onChange={(e) => setJoinCodeInput(e.target.value)}
+                  />
+                </label>
+                <button type="submit" className="btn" style={{ width: "100%", marginTop: 4 }}>
+                  Join group
+                </button>
+              </form>
+            </div>
+
+            {/* Right side: Selected Group Details & Shared Feed */}
+            {selectedGroupId && groups.find((g) => g.id === selectedGroupId) ? (
+              (() => {
+                const grp = groups.find((g) => g.id === selectedGroupId)!;
+                // Occasions shared with this group
+                const groupEvents = events.filter(
+                  (e) => !e.archived && e.sharedGroupIds && e.sharedGroupIds.includes(grp.id),
+                );
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div className="card">
+                      <div className="groupHeader">
+                        <div>
+                          <h2>{grp.name}</h2>
+                          <p className="note" style={{ margin: "4px 0 0" }}>
+                            Invite code: <strong style={{ color: "var(--pr)", fontSize: 16 }}>{grp.code}</strong>
+                            <button
+                              className="btn"
+                              style={{ marginLeft: 10, padding: "2px 8px", fontSize: 12 }}
+                              onClick={() => {
+                                navigator.clipboard.writeText(grp.code);
+                                toast("Invite code copied to clipboard!");
+                              }}
+                            >
+                              Copy code
+                            </button>
+                          </p>
+                        </div>
+                      </div>
+
+                      <h3 style={{ marginTop: 20 }}>Group Members</h3>
+                      <div className="checkpointPills" style={{ marginBottom: 20 }}>
+                        {Object.values(grp.members || {}).map((m) => (
+                          <span key={m.uid} className="checkpointPill">
+                            👤 {m.name} {m.email ? `(${m.email.split("@")[0]})` : ""}
+                          </span>
+                        ))}
+                      </div>
+
+                      <h3>Shared Occasions</h3>
+                      <p className="note">
+                        Dates shared by members of {grp.name}. To share an occasion, edit it and check "{grp.name}".
+                      </p>
+
+                      {groupEvents.length === 0 ? (
+                        <div className="emptyState" style={{ padding: "24px 16px" }}>
+                          <p style={{ margin: "0 auto" }}>
+                            No occasions are shared with this group yet. Edit any birthday, anniversary, or wish to opt it in!
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="groupSharedFeed">
+                          {groupEvents.map((ev) => {
+                            const nextDate = nextOccurrence(ev, today || localDate(new Date(), settings.timezone));
+                            const days = daysBetween(today || localDate(new Date(), settings.timezone), nextDate);
+                            return (
+                              <div className="row" key={ev.id}>
+                                <div className="dt">
+                                  <span>{MN[ev.month - 1].slice(0, 3)}</span>
+                                  <b>{ev.day}</b>
+                                </div>
+                                <div className="grow">
+                                  <b>{ev.name}</b>
+                                  <br />
+                                  <span className={`tag ${ev.type}`}>{ev.type}</span>
+                                  {ev.notes && <small style={{ display: "inline" }}>{ev.notes}</small>}
+                                </div>
+                                <span className={`pill ${days <= 7 ? "hot" : ""}`}>
+                                  {days === 0 ? "Today" : days === 1 ? "Tomorrow" : `in ${days} days`}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Christmas Wishlist inside Group */}
+                    <div className="card">
+                      <h2>🎄 Christmas Wishlists</h2>
+                      <p className="note">
+                        Share gift ideas, sizes, and wishes with your group members.
+                      </p>
+
+                      <div style={{ marginBottom: 20 }}>
+                        <h3>Your Christmas Wishlist</h3>
+                        {wishlistItems.length === 0 ? (
+                          <p className="off">Your wishlist is currently empty. Add your first gift idea below!</p>
+                        ) : (
+                          <ul className="wishlist">
+                            {wishlistItems.map((item) => (
+                              <li key={item.id} className="wishlistItem">
+                                <div className="grow">
+                                  <b>{item.title}</b>
+                                  {item.url && (
+                                    <div>
+                                      <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "var(--pr)" }}>
+                                        View item link ↗
+                                      </a>
+                                    </div>
+                                  )}
+                                  {item.notes && <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--mu)" }}>{item.notes}</p>}
+                                </div>
+                                <button
+                                  className="btn d"
+                                  style={{ padding: "4px 8px", fontSize: 12 }}
+                                  onClick={async () => {
+                                    const updated = wishlistItems.filter((w) => w.id !== item.id);
+                                    setWishlistItems(updated);
+                                    if (user) await saveUserWishlist(user.uid, updated);
+                                    toast("Wishlist item removed.");
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        <form
+                          onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!newWishTitle.trim()) return;
+                            const newItem: WishlistItem = {
+                              id: crypto.randomUUID(),
+                              title: newWishTitle.trim(),
+                              url: newWishUrl.trim() || undefined,
+                              notes: newWishNotes.trim() || undefined,
+                              createdAt: new Date().toISOString(),
+                            };
+                            const updated = [...wishlistItems, newItem];
+                            setWishlistItems(updated);
+                            if (user) await saveUserWishlist(user.uid, updated);
+                            setNewWishTitle("");
+                            setNewWishUrl("");
+                            setNewWishNotes("");
+                            toast("Added to your Christmas wishlist!");
+                          }}
+                          style={{ marginTop: 16, background: "var(--bg)", padding: 14, borderRadius: 10 }}
+                        >
+                          <b>+ Add a gift wish</b>
+                          <label className="f" style={{ marginTop: 8 }}>
+                            Item or idea
+                            <input
+                              value={newWishTitle}
+                              placeholder="e.g. Cozy Merino Wool Scarf, Espresso Grinder"
+                              required
+                              onChange={(e) => setNewWishTitle(e.target.value)}
+                            />
+                          </label>
+                          <div className="two">
+                            <label className="f">
+                              Product URL (optional)
+                              <input
+                                type="url"
+                                value={newWishUrl}
+                                placeholder="https://..."
+                                onChange={(e) => setNewWishUrl(e.target.value)}
+                              />
+                            </label>
+                            <label className="f">
+                              Details / Size / Color (optional)
+                              <input
+                                value={newWishNotes}
+                                placeholder="Size M, forest green, etc."
+                                onChange={(e) => setNewWishNotes(e.target.value)}
+                              />
+                            </label>
+                          </div>
+                          <button type="submit" className="btn p" style={{ marginTop: 6 }}>
+                            Add to wishlist
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="card">
+                <p className="off">Select a group or create one to view shared dates and wishlists.</p>
+              </div>
+            )}
+          </div>
         </section>
       )}
 
@@ -1046,6 +1403,43 @@ export default function Dashboard() {
                   onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
                 />
               </label>
+
+              {/* Share with Groups */}
+              <div className="f">
+                <span>Share with Groups (Opt-in)</span>
+                {groups.length === 0 ? (
+                  <small style={{ color: "var(--mu)" }}>
+                    You haven't joined any groups yet. Create or join one in the Groups tab!
+                  </small>
+                ) : (
+                  <div className="checkpointPills" role="group" aria-label="Share with Groups">
+                    {groups.map((grp) => {
+                      const shared = (editing.sharedGroupIds || []).includes(grp.id);
+                      return (
+                        <button
+                          key={grp.id}
+                          type="button"
+                          className={`checkpointPill ${shared ? "active" : ""}`}
+                          aria-pressed={shared}
+                          onClick={() => {
+                            const current = editing.sharedGroupIds || [];
+                            const updated = shared
+                              ? current.filter((id) => id !== grp.id)
+                              : [...current, grp.id];
+                            setEditing({ ...editing, sharedGroupIds: updated });
+                          }}
+                        >
+                          {shared ? "✓ " : "+ "}
+                          {grp.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <small style={{ marginTop: 4 }}>
+                  Only members of selected groups will be able to see this occasion.
+                </small>
+              </div>
 
               {dialogError && <p className="err">{dialogError}</p>}
 

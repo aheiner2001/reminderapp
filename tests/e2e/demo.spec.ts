@@ -39,6 +39,12 @@ test("demo supports add, edit, preview, settings and mobile navigation", async (
   await page.getByRole("button", { name: "Events" }).click();
   await expect(page.getByText("Maya Test").first()).toBeVisible();
 
+  // Switch to Groups tab
+  await page.getByRole("button", { name: "Groups" }).click();
+  await expect(page.getByRole("heading", { name: "Your Groups" })).toBeVisible();
+  await expect(page.getByText(/The Family/i).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Christmas Wishlists/i })).toBeVisible();
+
   // Switch to Preview tab
   await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.getByRole("heading", { name: "Preview a day’s email" })).toBeVisible();

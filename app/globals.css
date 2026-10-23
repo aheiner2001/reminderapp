@@ -650,7 +650,94 @@ label.f textarea {
   z-index: 999;
 }
 
+.groupGrid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.groupList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.groupItemBtn {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--ln);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.groupItemBtn.on {
+  border-color: var(--pr);
+  background: color-mix(in srgb, var(--pr) 8%, var(--sf));
+}
+
+.groupItemInfo b {
+  display: block;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.groupItemInfo small {
+  display: block;
+  color: var(--mu);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.groupItemInfo code {
+  background: var(--sf);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 700;
+  color: var(--pr);
+}
+
+.groupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.groupSharedFeed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.wishlist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wishlistItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--ln);
+  background: var(--sf);
+  gap: 12px;
+}
+
 @media (max-width: 860px) {
+  .groupGrid {
+    grid-template-columns: 1fr;
+  }
   .stats {
     grid-template-columns: 1fr 1fr;
   }
