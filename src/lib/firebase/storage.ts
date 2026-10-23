@@ -14,6 +14,10 @@ import {
   type ReminderEvent,
   type Settings,
   defaultSettings,
+  type GroupCircle,
+  type GroupMember,
+  type WishlistItem,
+  type UserWishlist,
 } from "../reminders";
 import { validateSettings } from "../access";
 
@@ -121,4 +125,176 @@ export async function deleteUserAccountData(uid: string): Promise<void> {
   // Delete profile/settings
   const settingsRef = doc(db, `reminderUsers/${uid}/profile`, "settings");
   await deleteDoc(settingsRef);
+}
+
+function generateGroupCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+export async function createGroupCircle(
+  uid: string,
+  userName: string,
+  userEmail: string,
+  groupName: string,
+): Promise<GroupCircle> {
+  const db = getClientDb();
+  const groupId = crypto.randomUUID();
+  const code = generateGroupCode();
+  const now = new Date().toISOString();
+
+  const group: GroupCircle = {
+    id: groupId,
+    name: groupName.trim() || "My Group",
+    code,
+    ownerUid: uid,
+    createdAt: now,
+    members: {
+      [uid]: {
+        uid,
+        name: userName || userEmail.split("@")[0] || "Member",
+        email: userEmail,
+        joinedAt: now,
+      },
+    },
+  };
+
+  const groupRef = doc(db, "reminderGroups", groupId);
+  await setDoc(groupRef, group);
+
+  // Link group to user
+  const userGroupRef = doc(db, `reminderUsers/${uid}/groups`, groupId);
+  await setDoc(userGroupRef, { groupId, joinedAt: now });
+
+  return group;
+}
+
+export async function joinGroupByCode(
+  uid: string,
+  userName: string,
+  userEmail: string,
+  code: string,
+): Promise<GroupCircle> {
+  const db = getClientDb();
+  const cleanCode = code.trim().toUpperCase();
+
+  const groupsCol = collection(db, "reminderGroups");
+  const snap = await getDocs(groupsCol);
+  let matchedGroup: GroupCircle | null = null;
+
+  snap.forEach((d) => {
+    const data = d.data() as GroupCircle;
+    if (data.code?.toUpperCase() === cleanCode) {
+      matchedGroup = { ...data, id: d.id };
+    }
+  });
+
+  if (!matchedGroup) {
+    throw new Error(`No group found with code "${cleanCode}".`);
+  }
+
+  const group = matchedGroup as GroupCircle;
+  const now = new Date().toISOString();
+
+  group.members[uid] = {
+    uid,
+    name: userName || userEmail.split("@")[0] || "Member",
+    email: userEmail,
+    joinedAt: now,
+  };
+
+  const groupRef = doc(db, "reminderGroups", group.id);
+  await setDoc(groupRef, group);
+
+  // Link group to user
+  const userGroupRef = doc(db, `reminderUsers/${uid}/groups`, group.id);
+  await setDoc(userGroupRef, { groupId: group.id, joinedAt: now });
+
+  return group;
+}
+
+export async function fetchUserGroups(uid: string): Promise<GroupCircle[]> {
+  const db = getClientDb();
+  const groups: GroupCircle[] = [];
+
+  try {
+    const userGroupsCol = collection(db, `reminderUsers/${uid}/groups`);
+    const userGroupsSnap = await getDocs(userGroupsCol);
+
+    for (const d of userGroupsSnap.docs) {
+      const gId = d.data().groupId || d.id;
+      const groupRef = doc(db, "reminderGroups", gId);
+      const gSnap = await getDoc(groupRef);
+      if (gSnap.exists()) {
+        groups.push({ ...(gSnap.data() as GroupCircle), id: gSnap.id });
+      }
+    }
+  } catch (err) {
+    console.warn("fetchUserGroups warning", err);
+  }
+
+  return groups;
+}
+
+export async function fetchGroupOccasions(
+  groupId: string,
+  members: Record<string, GroupMember>,
+): Promise<{ event: ReminderEvent; memberName: string }[]> {
+  const db = getClientDb();
+  const results: { event: ReminderEvent; memberName: string }[] = [];
+
+  for (const [memberUid, member] of Object.entries(members)) {
+    try {
+      const eventsCol = collection(db, `reminderUsers/${memberUid}/events`);
+      const eventsSnap = await getDocs(eventsCol);
+      eventsSnap.forEach((docSnap) => {
+        try {
+          const ev = validateEvent({ ...docSnap.data(), id: docSnap.id });
+          if (!ev.archived && ev.sharedGroupIds && ev.sharedGroupIds.includes(groupId)) {
+            results.push({ event: ev, memberName: member.name });
+          }
+        } catch {
+          // ignore corrupted
+        }
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  return results;
+}
+
+export async function saveUserWishlist(
+  uid: string,
+  items: WishlistItem[],
+): Promise<UserWishlist> {
+  const db = getClientDb();
+  const wishlist: UserWishlist = {
+    uid,
+    items,
+    updatedAt: new Date().toISOString(),
+  };
+  const ref = doc(db, `reminderUsers/${uid}/profile`, "wishlist");
+  await setDoc(ref, wishlist);
+  return wishlist;
+}
+
+export async function fetchUserWishlist(uid: string): Promise<WishlistItem[]> {
+  const db = getClientDb();
+  try {
+    const ref = doc(db, `reminderUsers/${uid}/profile`, "wishlist");
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const data = snap.data();
+      return Array.isArray(data.items) ? data.items : [];
+    }
+  } catch {
+    // fallback
+  }
+  return [];
 }
