@@ -87,8 +87,26 @@ describe("calendar reminders", () => {
     expect(() => validateEvent({ ...event, month: 4, day: 31 })).toThrow();
     expect(() => validateEvent({ ...event, leadDays: 366 })).toThrow();
   });
-  it("rejects untrusted event type and oversized name", () => {
-    expect(() => validateEvent({ ...event, type: "Other" })).toThrow();
+  it("rejects invalid event type and oversized name", () => {
+    expect(() => validateEvent({ ...event, type: "" })).toThrow();
     expect(() => validateEvent({ ...event, name: "a".repeat(101) })).toThrow();
+  });
+  it("honors custom event types", () => {
+    const custom = validateEvent({ ...event, type: "Christmas Wish" });
+    expect(custom.type).toBe("Christmas Wish");
+  });
+  it("honors specific checkpoints when provided", () => {
+    const cpEvent = { ...event, checkpoints: [30, 7, 1, 0] };
+    // 30 days before Jan 1, 2027 is Dec 2, 2026
+    const s30 = buildSummary([cpEvent], settings, "2026-12-02");
+    expect(s30.sections.some((s: any) => s.kind === "alerts")).toBe(true);
+
+    // 15 days before Jan 1, 2027 is Dec 17, 2026 - not in checkpoints
+    const s15 = buildSummary([cpEvent], settings, "2026-12-17");
+    expect(s15.sections.some((s: any) => s.kind === "alerts")).toBe(false);
+
+    // 7 days before Jan 1, 2027 is Dec 25, 2026 - in checkpoints
+    const s7 = buildSummary([cpEvent], settings, "2026-12-25");
+    expect(s7.sections.some((s: any) => s.kind === "alerts")).toBe(true);
   });
 });

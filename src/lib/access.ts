@@ -49,11 +49,15 @@ export function validateSettings(input: unknown): Settings {
     throw new AppError("Default lead time must be 0–365.", 400);
   if (typeof s.emailEnabled !== "boolean" || typeof s.paused !== "boolean")
     throw new AppError("Invalid settings.", 400);
+  const customTypes = Array.isArray(s.customTypes)
+    ? s.customTypes.filter((t): t is string => typeof t === "string" && t.trim().length > 0 && t.length <= 50).map(t => t.trim())
+    : undefined;
   return {
     timezone: s.timezone,
     sendTime: s.sendTime,
     defaultLeadDays: Number(s.defaultLeadDays),
     emailEnabled: s.emailEnabled,
     paused: s.paused,
+    ...(customTypes ? { customTypes } : {}),
   };
 }

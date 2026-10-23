@@ -8,6 +8,8 @@ export interface ReminderEvent {
   notes?: string;
   emailEnabled: boolean;
   leadDays: number | null;
+  checkpoints?: number[];
+  remindTime?: string;
   daily: boolean;
   weekly: boolean;
   monthly: boolean;
@@ -19,6 +21,7 @@ export interface Settings {
   defaultLeadDays: number;
   emailEnabled: boolean;
   paused: boolean;
+  customTypes?: string[];
 }
 export interface SummaryItem {
   id: string;
@@ -108,10 +111,12 @@ export function validateEvent(input: unknown): ReminderEvent {
   if (!input || typeof input !== "object") throw new Error("Invalid event.");
   const v = input as Record<string, unknown>;
   const name = typeof v.name === "string" ? v.name.trim() : "";
+  const type = String(v.type || "").trim();
   if (
     !name ||
     name.length > 100 ||
-    !["Birthday", "Anniversary"].includes(String(v.type))
+    !type ||
+    type.length > 50
   )
     throw new Error("Enter a name (1–100 characters) and event type.");
   if (
@@ -154,6 +159,12 @@ export function validateEvent(input: unknown): ReminderEvent {
     notes: String(v.notes ?? ""),
     emailEnabled: v.emailEnabled as boolean,
     leadDays: v.leadDays as number | null,
+    checkpoints: Array.isArray(v.checkpoints)
+      ? v.checkpoints.filter((n: any) => Number.isInteger(n) && n >= 0 && n <= 365)
+      : undefined,
+    remindTime: typeof v.remindTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v.remindTime)
+      ? v.remindTime
+      : undefined,
     daily: v.daily as boolean,
     weekly: v.weekly as boolean,
     monthly: v.monthly as boolean,
@@ -232,6 +243,9 @@ export function buildSummary(
   }
   const alerts = items.filter((i) => {
     const e = eligible.find((e) => e.id === i.id)!;
+    if (e.checkpoints && e.checkpoints.length > 0) {
+      return e.checkpoints.includes(i.days);
+    }
     const lead = e.leadDays ?? settings.defaultLeadDays;
     return i.days === 0 || (e.daily ? i.days <= lead : i.days === lead);
   });
