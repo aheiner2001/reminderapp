@@ -14,6 +14,37 @@ export interface ReminderEvent {
   weekly: boolean;
   monthly: boolean;
   archived: boolean;
+  sharedGroupIds?: string[];
+}
+
+export interface GroupMember {
+  uid: string;
+  name: string;
+  email: string;
+  joinedAt: string;
+}
+
+export interface GroupCircle {
+  id: string;
+  name: string;
+  code: string;
+  ownerUid: string;
+  createdAt: string;
+  members: Record<string, GroupMember>;
+}
+
+export interface WishlistItem {
+  id: string;
+  title: string;
+  url?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface UserWishlist {
+  uid: string;
+  items: WishlistItem[];
+  updatedAt: string;
 }
 export interface Settings {
   timezone: string;
@@ -169,6 +200,9 @@ export function validateEvent(input: unknown): ReminderEvent {
     weekly: v.weekly as boolean,
     monthly: v.monthly as boolean,
     archived: v.archived as boolean,
+    sharedGroupIds: Array.isArray(v.sharedGroupIds)
+      ? v.sharedGroupIds.filter((g: any) => typeof g === "string" && g.trim().length > 0)
+      : undefined,
   };
 }
 export function upcoming(

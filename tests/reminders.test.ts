@@ -109,4 +109,11 @@ describe("calendar reminders", () => {
     const s7 = buildSummary([cpEvent], settings, "2026-12-25");
     expect(s7.sections.some((s: any) => s.kind === "alerts")).toBe(true);
   });
+  it("sanitizes sharedGroupIds", () => {
+    const ev = validateEvent({
+      ...event,
+      sharedGroupIds: ["grp-1", "  grp-2  ", "", null, 123 as any],
+    });
+    expect(ev.sharedGroupIds).toEqual(["grp-1", "  grp-2  "]);
+  });
 });
