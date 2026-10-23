@@ -1,0 +1,15 @@
+{
+  "name": "reminder-worker",
+  "version": "1.0.0",
+  "description": "AWS Lambda worker for sending daily birthday and anniversary reminders via AWS SES and Firebase Firestore",
+  "main": "index.mjs",
+  "type": "module",
+  "scripts": {
+    "build": "bash build.sh",
+    "test:dry-run": "node test-worker.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ses": "^3.750.0",
+    "firebase-admin": "^13.0.0"
+  }
+}
