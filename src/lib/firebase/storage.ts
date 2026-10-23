@@ -109,3 +109,16 @@ export async function saveUserSettings(
   await setDoc(settingsRef, validated);
   return validated;
 }
+
+export async function deleteUserAccountData(uid: string): Promise<void> {
+  const db = getClientDb();
+  // Delete all user events
+  const eventsCol = collection(db, `reminderUsers/${uid}`, "events");
+  const eventsSnap = await getDocs(eventsCol);
+  const deletes = eventsSnap.docs.map((docSnap) => deleteDoc(docSnap.ref));
+  await Promise.all(deletes);
+
+  // Delete profile/settings
+  const settingsRef = doc(db, `reminderUsers/${uid}/profile`, "settings");
+  await deleteDoc(settingsRef);
+}

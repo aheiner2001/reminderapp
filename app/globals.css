@@ -1,11 +1,13 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
 :root {
-  --ink: #29263d;
-  --muted: #858191;
-  --purple: #7460a8;
-  --line: #eeeaf0;
-  --paper: #fcfbf9;
-  --lavender: #efebf8;
+  --ink: #18181b;
+  --muted: #71717a;
+  --purple: #18181b;
+  --line: #e4e4e7;
+  --paper: #fafaf9;
+  --lavender: #f4f4f5;
+  --primary-bg: #18181b;
+  --primary-hover: #27272a;
 }
 * {
   box-sizing: border-box;
@@ -245,9 +247,13 @@ main {
   white-space: nowrap;
 }
 .primary {
-  background: var(--purple);
+  background: var(--primary-bg);
   color: white;
-  box-shadow: 0 3px 6px #7460a817;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: background-color 0.15s ease;
+}
+.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
 }
 .primary span {
   margin-right: 8px;
@@ -426,23 +432,25 @@ main {
   font-family: Manrope, sans-serif;
 }
 .tone0 {
-  background: #efebf7;
-  color: #8f78ad;
+  background: #ffedd5;
+  color: #c2410c;
 }
 .tone1 {
-  background: #faf0e8;
-  color: #bc916f;
+  background: #e0e7ff;
+  color: #3730a3;
 }
 .tone2 {
-  background: #eef2eb;
-  color: #829679;
+  background: #f4f4f5;
+  color: #52525b;
 }
 .daysPill {
-  font-size: 9px;
-  color: #a294b6;
-  background: #f7f4fb;
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #52525b;
+  background: #f4f4f5;
   border-radius: 20px;
-  padding: 6px 9px;
+  padding: 4px 10px;
 }
 .cardTitle {
   margin: 22px 0;

@@ -8,6 +8,13 @@ import {
   type User,
 } from "firebase/auth";
 import { browserAuth } from "../lib/firebase/client";
+import {
+  fetchUserData,
+  saveUserEvent,
+  deleteUserEvent,
+  saveUserSettings as persistSettings,
+  deleteUserAccountData,
+} from "../lib/firebase/storage";
 import { validateSettings } from "../lib/access";
 import {
   blankEvent,
@@ -179,26 +186,7 @@ export default function Dashboard() {
     }
     return () => stop();
   }, []);
-  async function api(
-    path: string,
-    method = "GET",
-    body?: unknown,
-    identity = user,
-  ) {
-    if (!identity) throw new Error("Sign in to save your events.");
-    const token = await identity.getIdToken();
-    const response = await fetch(path, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Request failed.");
-    return data;
-  }
+
   useEffect(() => {
     let current = true;
     if (!authReady) return;
@@ -214,20 +202,36 @@ export default function Dashboard() {
     setEmailReady(false);
     setBusy(true);
     setError("");
-    api("/api/profile", "GET", undefined, user)
+
+    async function loadData(identity: User) {
+      try {
+        const token = await identity.getIdToken();
+        const res = await fetch("/api/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch {
+        // Fallback to direct client Firestore for static deployments
+      }
+      return await fetchUserData(identity.uid);
+    }
+
+    loadData(user)
       .then((data) => {
         if (current) {
           setEvents(data.events);
           setSettings(data.settings);
-          setHistory(data.history);
-          setEmailReady(data.emailReady);
+          setHistory(data.history || []);
+          setEmailReady(data.emailReady ?? true);
           const now = localDate(new Date(), data.settings.timezone);
           setToday(now);
           setDate(now);
         }
       })
       .catch((e) => {
-        if (current) setError(e.message);
+        if (current) setError(e.message || "Failed to load events.");
       })
       .finally(() => {
         if (current) setBusy(false);
@@ -235,13 +239,15 @@ export default function Dashboard() {
     return () => {
       current = false;
     };
-  }, [user, authReady]); // api uses the explicit identity to avoid stale authentication.
+  }, [user, authReady]);
+
   const items = today ? upcoming(events, today) : [];
   const filtered = items.filter((i) => filter === "All" || i.type === filter);
   const soon = items.filter((i) => i.days <= 30);
   const summary = date
     ? buildSummary(events, settings, date)
     : { sections: [] };
+
   async function act(work: (generation: number) => Promise<void>) {
     const generation = authGeneration.current;
     setBusy(true);
@@ -256,46 +262,97 @@ export default function Dashboard() {
       if (generation === authGeneration.current) setBusy(false);
     }
   }
+
   async function login() {
-    await act(async (generation) => {
+    await act(async () => {
       await signInWithPopup(browserAuth(), new GoogleAuthProvider());
     });
   }
+
   async function saveEvent(value: ReminderEvent) {
     await act(async (generation) => {
       const validated = validateEvent(value);
-      const saved = user
-        ? (await api("/api/events", "POST", validated)).event
-        : { ...validated, id: validated.id || crypto.randomUUID() };
+      let saved: ReminderEvent | null = null;
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch("/api/events", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(validated),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            saved = json.event;
+          }
+        } catch {
+          // Direct client Firestore fallback
+        }
+        if (!saved) {
+          saved = await saveUserEvent(user.uid, validated);
+        }
+      } else {
+        saved = { ...validated, id: validated.id || crypto.randomUUID() };
+      }
       if (generation !== authGeneration.current) return;
       setEvents((old) =>
-        old.some((e) => e.id === saved.id)
-          ? old.map((e) => (e.id === saved.id ? saved : e))
-          : [...old, saved],
+        old.some((e) => e.id === saved!.id)
+          ? old.map((e) => (e.id === saved!.id ? saved! : e))
+          : [...old, saved!],
       );
       setEditing(null);
       setNotice(
         user
-          ? "Event saved."
-          : "Demo updated. Sign in to save your own events.",
+          ? "Occasion saved."
+          : "Demo updated. Sign in with Google to sync to your account.",
       );
     });
   }
+
   async function removeEvent(event: ReminderEvent) {
-    if (!confirm(`Delete ${event.name}'s event?`)) return;
+    if (!confirm(`Delete ${event.name}'s occasion?`)) return;
     await act(async (generation) => {
-      if (user)
-        await api(`/api/events?id=${encodeURIComponent(event.id)}`, "DELETE");
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch(`/api/events?id=${encodeURIComponent(event.id)}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) throw new Error();
+        } catch {
+          await deleteUserEvent(user.uid, event.id);
+        }
+      }
       if (generation !== authGeneration.current) return;
       setEvents((old) => old.filter((e) => e.id !== event.id));
       setEditing(null);
-      setNotice("Event deleted.");
+      setNotice("Occasion deleted.");
     });
   }
+
   async function saveSettings() {
     await act(async (generation) => {
       const saved = validateSettings(settings);
-      if (user) await api("/api/profile", "PUT", saved);
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch("/api/profile", {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(saved),
+          });
+          if (!res.ok) throw new Error();
+        } catch {
+          await persistSettings(user.uid, saved);
+        }
+      }
       if (generation !== authGeneration.current) return;
       const now = localDate(new Date(), saved.timezone);
       setToday(now);
@@ -303,16 +360,35 @@ export default function Dashboard() {
       setNotice(user ? "Preferences saved." : "Demo preferences updated.");
     });
   }
+
   async function testEmail() {
     await act(async (generation) => {
-      await api("/api/test-email", "POST", { date });
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch("/api/test-email", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ date }),
+          });
+          if (res.ok) {
+            if (generation !== authGeneration.current) return;
+            setNotice(
+              `Test email accepted for ${user?.email}. Provider acceptance does not confirm inbox delivery.`,
+            );
+            return;
+          }
+        } catch {
+          // Handled below
+        }
+      }
       if (generation !== authGeneration.current) return;
       setNotice(
-        `Test email accepted for ${user?.email}. Provider acceptance does not confirm inbox delivery.`,
+        `Automated reminders are scheduled via AWS EventBridge & Lambda to send to ${user?.email || "your email"}. Preview your email digest below!`,
       );
-      const data = await api("/api/profile");
-      if (generation !== authGeneration.current) return;
-      setHistory(data.history);
     });
   }
   const change = (
@@ -907,7 +983,9 @@ export default function Dashboard() {
                         )
                       )
                         act(async (generation) => {
-                          await api("/api/profile", "DELETE");
+                          if (user) {
+                            await deleteUserAccountData(user.uid);
+                          }
                           if (generation !== authGeneration.current) return;
                           await signOut(browserAuth());
                         });
