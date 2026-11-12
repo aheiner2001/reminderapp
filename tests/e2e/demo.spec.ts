@@ -98,7 +98,7 @@ test("demo supports People notes and Secret Santa gifting flows", async ({
     page.getByRole("heading", { name: "Secret Santa Generator" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "My celebrations" }).click();
-  await expect(page.getByText(/Invite code/i)).toContainText("FAM778");
+  await expect(page.getByText("Invite code FAM778")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Draw names" })).toBeVisible();
 
   await page.getByRole("button", { name: "Draw names" }).click();
