@@ -2,43 +2,32 @@
 
 import { useMemo, useState } from "react";
 import type { User } from "firebase/auth";
-import GiftBanner from "./GiftBanner";
+import GiftBanner from "./dn/GiftBanner";
+import {
+  DnAppBar,
+  DnCard,
+  DnChip,
+  DnChipGrid,
+  DnContinue,
+  DnField,
+  DnHero,
+  DnInput,
+  DnMenuButton,
+  DnPage,
+  DnRule,
+  DnStepNav,
+  DnSub,
+  DnTextButton,
+  DnTitle,
+} from "./dn/ui";
 import GroupDrawPanel from "./GroupDrawPanel";
 import WishlistReservationList from "./WishlistReservationList";
+import SecretSantaWizard, { type WizardResult } from "./SecretSantaWizard";
 import type { GroupDraw } from "../lib/draws";
 import type { GroupCircle, ReminderEvent, WishlistItem } from "../lib/reminders";
 import { daysBetween, localDate, nextOccurrence } from "../lib/reminders";
 
-const CELEBRATIONS = [
-  "Secret Santa",
-  "Christmas",
-  "Hanukkah",
-  "Thanksgiving",
-  "New Year's Eve",
-  "Eid",
-  "Kwanzaa",
-  "Valentine's Day",
-  "Christmas in July",
-  "Halloween",
-  "Mother's Day",
-  "Diwali",
-  "Father's Day",
-  "Eid al-Adha",
-  "Purim",
-  "Easter",
-  "Other",
-] as const;
-
-const BUDGETS = ["$100", "$50", "$30", "$25", "$20", "Other"] as const;
-
-const DATE_PRESETS = [
-  "2026-12-19",
-  "2026-12-24",
-  "2026-12-25",
-] as const;
-
 type HubView = "menu" | "create" | "join" | "detail" | "wishlist";
-type WizardStep = 0 | 1 | 2 | 3 | 4 | 5;
 
 const MN = [
   "January", "February", "March", "April", "May", "June",
@@ -46,8 +35,7 @@ const MN = [
 ];
 
 function formatPreset(iso: string) {
-  const d = new Date(`${iso}T12:00:00`);
-  return d.toLocaleDateString(undefined, {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -86,6 +74,8 @@ interface SecretSantaExperienceProps {
   saveDraw: (groupId: string, draw: GroupDraw) => Promise<void>;
   toast: (msg: string) => void;
   act: (fn: () => Promise<void>) => Promise<void>;
+  onExit: () => void;
+  onSignIn?: () => void;
 }
 
 export default function SecretSantaExperience(props: SecretSantaExperienceProps) {
@@ -116,23 +106,11 @@ export default function SecretSantaExperience(props: SecretSantaExperienceProps)
     saveDraw,
     toast,
     act,
+    onExit,
+    onSignIn,
   } = props;
 
   const [view, setView] = useState<HubView>("menu");
-  const [step, setStep] = useState<WizardStep>(0);
-  const [organizerName, setOrganizerName] = useState(
-    user?.displayName || user?.email?.split("@")[0] || "",
-  );
-  const [includeOrganizer, setIncludeOrganizer] = useState(true);
-  const [celebration, setCelebration] = useState<string>("Secret Santa");
-  const [customCelebration, setCustomCelebration] = useState("");
-  const [dateChoice, setDateChoice] = useState<string>(DATE_PRESETS[2]);
-  const [customDate, setCustomDate] = useState("");
-  const [budget, setBudget] = useState<string>("$25");
-  const [customBudget, setCustomBudget] = useState("");
-  const [inviteMessage, setInviteMessage] = useState(
-    "✨ You've been invited to make a wish list and draw a name for Secret Santa 2026!",
-  );
   const [joinCode, setJoinCode] = useState("");
 
   const selected = useMemo(
@@ -140,23 +118,16 @@ export default function SecretSantaExperience(props: SecretSantaExperienceProps)
     [groups, selectedGroupId],
   );
 
-  const progress = ((step + 1) / 6) * 100;
-
-  const celebrationLabel =
-    celebration === "Other" ? customCelebration.trim() || "Celebration" : celebration;
-  const budgetNote =
-    budget === "Other" ? customBudget.trim() || "Flexible" : budget;
-  const celebrationDate =
-    dateChoice === "other" ? customDate || undefined : dateChoice;
-
-  async function finishCreate() {
-    const name = `${celebrationLabel}${organizerName.trim() ? ` — ${organizerName.trim()}` : ""}`;
+  async function finishCreate(result: WizardResult) {
+    const name = `${result.celebrationLabel}${
+      result.organizerName.trim() ? ` — ${result.organizerName.trim()}` : ""
+    }`;
     await act(async () => {
       const grp = await createGroup(name.trim() || "Secret Santa");
       const setupDraw: GroupDraw = {
         status: "setup",
-        celebrationDate,
-        budgetNote,
+        celebrationDate: result.celebrationDate,
+        budgetNote: result.budgetNote,
         exclusions: [],
         assignments: {},
       };
@@ -166,324 +137,126 @@ export default function SecretSantaExperience(props: SecretSantaExperienceProps)
       );
       setSelectedGroupId(grp.id);
       setView("detail");
-      setStep(0);
-      toast(`Created ${celebrationLabel}! Share code ${grp.code}`);
+      toast(`Created ${result.celebrationLabel}! Share code ${grp.code}`);
     });
   }
 
+  const pageVariant = view === "wishlist" ? "snow" : "plain";
+
   return (
-    <div className="dnShell">
-      {view === "menu" && (
-        <section className="dnCard dnMenu">
-          <GiftBanner />
-          <h1 className="dnTitle">Secret Santa Generator</h1>
-          <p className="dnSub">
-            Organize your Secret Santa using Email, Text Message, or a link.
-          </p>
-          <div className="dnMenuList">
-            <button
-              type="button"
-              className="dnMenuBtn dnMenuPrimary"
-              onClick={() => {
-                setStep(0);
-                setView("create");
-              }}
-            >
-              Create a new celebration
-              <span aria-hidden>›</span>
-            </button>
-            <button
-              type="button"
-              className="dnMenuBtn"
-              onClick={() => setView("wishlist")}
-            >
-              Create a wish list
-              <span aria-hidden>›</span>
-            </button>
-            <hr className="dnRule" />
-            <button
-              type="button"
-              className="dnMenuBtn"
-              disabled={!groups.length}
-              onClick={() => {
-                if (selected) setSelectedGroupId(selected.id);
-                setView("detail");
-              }}
-            >
-              My celebrations
-              <span aria-hidden>›</span>
-            </button>
-            <button
-              type="button"
-              className="dnMenuBtn"
-              onClick={() => setView("wishlist")}
-            >
-              My wish lists
-              <span aria-hidden>›</span>
-            </button>
-            <button
-              type="button"
-              className="dnMenuBtn"
-              onClick={() => setView("join")}
-            >
-              Join with a code
-              <span aria-hidden>›</span>
-            </button>
-            <hr className="dnRule" />
-            <button
-              type="button"
-              className="dnMenuBtn"
-              onClick={() => toast(user ? `Signed in as ${user.email}` : "Use Google sign-in in the header.")}
-            >
-              {user ? "Account connected" : "Sign in or create account"}
-              <span aria-hidden>›</span>
-            </button>
-          </div>
-          <GiftBanner variant="compact" />
-        </section>
-      )}
+    <DnPage variant={pageVariant}>
+      <DnAppBar
+        onBackToReminders={onExit}
+        trailing={
+          user ? (
+            <span className="dnAccountChip">{user.email?.split("@")[0]}</span>
+          ) : (
+            <DnTextButton onClick={onSignIn}>Sign in</DnTextButton>
+          )
+        }
+      />
 
-      {view === "create" && (
-        <section className="dnWizard">
-          <GiftBanner variant={step >= 2 ? "santa" : "default"} />
-          <div className="dnProgress" aria-hidden>
-            <div className="dnProgressFill" style={{ width: `${progress}%` }} />
-          </div>
-          <div className="dnCard dnWizardCard">
-            {step === 0 && (
-              <>
-                <h2 className="dnTitle">What&apos;s your name?</h2>
-                <label className="dnField">
-                  <span className="srOnly">Your name</span>
-                  <input
-                    value={organizerName}
-                    placeholder="Enter your name"
-                    onChange={(e) => setOrganizerName(e.target.value)}
-                  />
-                </label>
-                <label className="dnCheck">
-                  <input
-                    type="checkbox"
-                    checked={includeOrganizer}
-                    onChange={(e) => setIncludeOrganizer(e.target.checked)}
-                  />
-                  Include me (the organizer) in the draw
-                </label>
-                <p className="dnHint">
-                  Did you draw names last year? Reuse a group from{" "}
-                  <button type="button" className="dnLinkBtn" onClick={() => setView("detail")}>
-                    My celebrations
-                  </button>
-                  .
-                </p>
-              </>
-            )}
-
-            {step === 1 && (
-              <>
-                <h2 className="dnTitle">What are you celebrating?</h2>
-                <div className="dnChipGrid" role="group" aria-label="Celebration type">
-                  {CELEBRATIONS.map((label) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className={`dnChip ${celebration === label ? "on" : ""}`}
-                      onClick={() => setCelebration(label)}
-                    >
-                      {label}
-                      {label === "Other" ? " ✎" : ""}
-                    </button>
-                  ))}
-                </div>
-                {celebration === "Other" && (
-                  <label className="dnField">
-                    <span className="srOnly">Custom celebration</span>
-                    <input
-                      value={customCelebration}
-                      placeholder="Name your celebration"
-                      onChange={(e) => setCustomCelebration(e.target.value)}
-                    />
-                  </label>
-                )}
-              </>
-            )}
-
-            {step === 2 && (
-              <>
-                <h2 className="dnTitle">
-                  When are you celebrating {celebrationLabel}{" "}
-                  {celebrationDate?.slice(0, 4) || "2026"}?
-                </h2>
-                <div className="dnStackChoices" role="group" aria-label="Celebration date">
-                  {DATE_PRESETS.map((iso) => (
-                    <button
-                      key={iso}
-                      type="button"
-                      className={`dnChoice ${dateChoice === iso ? "on" : ""}`}
-                      onClick={() => setDateChoice(iso)}
-                    >
-                      {formatPreset(iso)}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className={`dnChoice ${dateChoice === "other" ? "on" : ""}`}
-                    onClick={() => setDateChoice("other")}
-                  >
-                    Other ✎
-                  </button>
-                </div>
-                {dateChoice === "other" && (
-                  <label className="dnField">
-                    <span className="srOnly">Custom date</span>
-                    <input
-                      type="date"
-                      value={customDate}
-                      onChange={(e) => setCustomDate(e.target.value)}
-                    />
-                  </label>
-                )}
-              </>
-            )}
-
-            {step === 3 && (
-              <>
-                <h2 className="dnTitle">How much should people spend?</h2>
-                <div className="dnBudgetGrid" role="group" aria-label="Budget">
-                  {BUDGETS.map((amount) => (
-                    <button
-                      key={amount}
-                      type="button"
-                      className={`dnChoice ${budget === amount ? "on" : ""}`}
-                      onClick={() => setBudget(amount)}
-                    >
-                      {amount === "Other" ? "Other ✎" : amount}
-                    </button>
-                  ))}
-                </div>
-                {budget === "Other" && (
-                  <label className="dnField">
-                    <span className="srOnly">Custom budget</span>
-                    <input
-                      value={customBudget}
-                      placeholder="e.g. $40 or bring a homemade gift"
-                      onChange={(e) => setCustomBudget(e.target.value)}
-                    />
-                  </label>
-                )}
-              </>
-            )}
-
-            {step === 4 && (
-              <>
-                <h2 className="dnTitle">What&apos;s your message for the group?</h2>
-                <label className="dnField dnMessage">
-                  <span className="srOnly">Invite message</span>
-                  <textarea
-                    value={inviteMessage}
-                    rows={4}
-                    onChange={(e) => setInviteMessage(e.target.value)}
-                  />
-                </label>
-              </>
-            )}
-
-            {step === 5 && (
-              <>
-                <h2 className="dnTitle">Ready to create {celebrationLabel}?</h2>
-                <ul className="dnSummary">
-                  <li>
-                    <b>Organizer</b> {organizerName || "You"}
-                    {includeOrganizer ? " (in the draw)" : " (not in the draw)"}
-                  </li>
-                  <li>
-                    <b>Celebration</b> {celebrationLabel}
-                  </li>
-                  <li>
-                    <b>Date</b>{" "}
-                    {celebrationDate ? formatPreset(celebrationDate) : "Not set"}
-                  </li>
-                  <li>
-                    <b>Budget</b> {budgetNote}
-                  </li>
-                  <li>
-                    <b>Message</b> {inviteMessage}
-                  </li>
-                </ul>
-              </>
-            )}
-
-            <div className="dnNav">
-              <button
-                type="button"
-                className="dnBack"
-                aria-label="Back"
-                onClick={() => {
-                  if (step === 0) setView("menu");
-                  else setStep((s) => (s - 1) as WizardStep);
-                }}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="dnContinue"
-                onClick={() => {
-                  if (step < 5) setStep((s) => (s + 1) as WizardStep);
-                  else void finishCreate();
-                }}
-              >
-                {step === 5 ? "Create celebration" : "Continue"} <span aria-hidden>›</span>
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {view === "join" && (
-        <section className="dnCard dnJoin">
-          <GiftBanner variant="compact" />
-          <h2 className="dnTitle">Join a celebration</h2>
-          <p className="dnSub">Enter the invite code from your organizer.</p>
-          <label className="dnField">
-            <span className="srOnly">Invite code</span>
-            <input
-              value={joinCode}
-              placeholder="e.g. FAM778"
-              onChange={(e) => setJoinCode(e.target.value)}
+      <main className="dnMain">
+        {view === "menu" && (
+          <>
+            <DnHero
+              title="Secret Santa Generator"
+              subtitle="Organize your Secret Santa using Email, Text Message, or a link."
+              banner={<GiftBanner />}
             />
-          </label>
-          <div className="dnNav">
-            <button type="button" className="dnBack" onClick={() => setView("menu")} aria-label="Back">
-              ‹
-            </button>
-            <button
-              type="button"
-              className="dnContinue"
-              onClick={() =>
-                void act(async () => {
-                  const grp = await joinGroup(joinCode.trim());
-                  setSelectedGroupId(grp.id);
-                  setJoinCode("");
-                  setView("detail");
-                  toast(`Joined "${grp.name}"!`);
-                })
-              }
-            >
-              Continue <span aria-hidden>›</span>
-            </button>
-          </div>
-        </section>
-      )}
+            <DnCard className="dnMenu">
+              <div className="dnMenuList">
+                <DnMenuButton
+                  primary
+                  onClick={() => setView("create")}
+                >
+                  Create a new celebration
+                </DnMenuButton>
+                <DnMenuButton onClick={() => setView("wishlist")}>
+                  Create a wish list
+                </DnMenuButton>
+                <DnRule />
+                <DnMenuButton
+                  disabled={!groups.length}
+                  onClick={() => {
+                    if (selected) setSelectedGroupId(selected.id);
+                    setView("detail");
+                  }}
+                >
+                  My celebrations
+                </DnMenuButton>
+                <DnMenuButton onClick={() => setView("wishlist")}>
+                  My wish lists
+                </DnMenuButton>
+                <DnMenuButton onClick={() => setView("join")}>
+                  Join with a code
+                </DnMenuButton>
+                <DnRule />
+                <DnMenuButton
+                  onClick={() =>
+                    user
+                      ? toast(`Signed in as ${user.email}`)
+                      : onSignIn?.() ?? toast("Use Sign in in the top bar.")
+                  }
+                >
+                  {user ? "Account connected" : "Sign in or create account"}
+                </DnMenuButton>
+              </div>
+              <GiftBanner variant="compact" />
+            </DnCard>
+          </>
+        )}
 
-      {view === "wishlist" && (
-        <section className="dnWishShell">
-          <div className="dnCard dnWishCard">
+        {view === "create" && (
+          <SecretSantaWizard
+            initialName={
+              user?.displayName || user?.email?.split("@")[0] || ""
+            }
+            onCancel={() => setView("menu")}
+            onOpenCelebrations={() => setView("detail")}
+            onComplete={finishCreate}
+          />
+        )}
+
+        {view === "join" && (
+          <>
+            <DnHero
+              title="Join a celebration"
+              subtitle="Enter the invite code from your organizer."
+              banner={<GiftBanner variant="compact" />}
+            />
+            <DnCard>
+              <DnField label="Invite code">
+                <DnInput
+                  value={joinCode}
+                  placeholder="e.g. FAM778"
+                  onChange={(e) => setJoinCode(e.target.value)}
+                />
+              </DnField>
+              <DnStepNav
+                onBack={() => setView("menu")}
+                continueLabel="Continue"
+                onContinue={() =>
+                  void act(async () => {
+                    const grp = await joinGroup(joinCode.trim());
+                    setSelectedGroupId(grp.id);
+                    setJoinCode("");
+                    setView("detail");
+                    toast(`Joined "${grp.name}"!`);
+                  })
+                }
+              />
+            </DnCard>
+          </>
+        )}
+
+        {view === "wishlist" && (
+          <DnCard className="dnWishCard">
             <GiftBanner variant="compact" />
-            <h2 className="dnTitle">My wish lists</h2>
-            <p className="dnSub">
+            <DnTitle>My wish lists</DnTitle>
+            <DnSub>
               Add gifts with shop links so your Secret Santa knows what you love.
-            </p>
+            </DnSub>
             {wishlistItems.length === 0 ? (
               <div className="dnEmptyWish">
                 <b>Add at least 3 gifts</b>
@@ -505,9 +278,7 @@ export default function SecretSantaExperience(props: SecretSantaExperienceProps)
                         <span className="dnReserved">Someone reserved this</span>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className="dnTextBtn"
+                    <DnTextButton
                       onClick={() =>
                         void act(async () => {
                           const updated = wishlistItems.filter((w) => w.id !== item.id);
@@ -518,7 +289,7 @@ export default function SecretSantaExperience(props: SecretSantaExperienceProps)
                       }
                     >
                       Remove
-                    </button>
+                    </DnTextButton>
                   </li>
                 ))}
               </ul>
@@ -546,88 +317,78 @@ export default function SecretSantaExperience(props: SecretSantaExperienceProps)
                 });
               }}
             >
-              <input
+              <DnInput
                 value={newWishTitle}
                 placeholder="Gift idea (e.g. Toast Lamp)"
                 required
                 onChange={(e) => setNewWishTitle(e.target.value)}
               />
-              <input
+              <DnInput
                 type="url"
                 value={newWishUrl}
                 placeholder="https:// shop link"
                 onChange={(e) => setNewWishUrl(e.target.value)}
               />
-              <input
+              <DnInput
                 value={newWishNotes}
                 placeholder="Size, color, notes"
                 onChange={(e) => setNewWishNotes(e.target.value)}
               />
-              <button type="submit" className="dnContinue">
-                Add gift <span aria-hidden>›</span>
-              </button>
+              <DnContinue type="submit">Add gift</DnContinue>
             </form>
-            <button type="button" className="dnTextBtn" onClick={() => setView("menu")}>
-              ‹ Back to menu
-            </button>
-          </div>
-        </section>
-      )}
+            <DnTextButton onClick={() => setView("menu")}>‹ Back to menu</DnTextButton>
+          </DnCard>
+        )}
 
-      {view === "detail" && selected && (
-        <div className="dnDetail">
-          <div className="dnDetailBar">
-            <button type="button" className="dnTextBtn" onClick={() => setView("menu")}>
-              ‹ Menu
-            </button>
-            <div className="dnCelebrationTabs">
-              {groups.map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  className={`dnChip ${selectedGroupId === g.id || (!selectedGroupId && g.id === selected.id) ? "on" : ""}`}
-                  onClick={() => setSelectedGroupId(g.id)}
-                >
-                  {g.name}
-                </button>
-              ))}
+        {view === "detail" && selected && (
+          <div className="dnDetail">
+            <div className="dnDetailBar">
+              <DnTextButton onClick={() => setView("menu")}>‹ Menu</DnTextButton>
+              <div className="dnCelebrationTabs">
+                {groups.map((g) => (
+                  <DnChip
+                    key={g.id}
+                    active={
+                      selectedGroupId === g.id ||
+                      (!selectedGroupId && g.id === selected.id)
+                    }
+                    onClick={() => setSelectedGroupId(g.id)}
+                  >
+                    {g.name}
+                  </DnChip>
+                ))}
+              </div>
+              <DnTextButton onClick={() => setView("create")}>+ New</DnTextButton>
             </div>
-            <button type="button" className="dnTextBtn" onClick={() => { setStep(0); setView("create"); }}>
-              + New
-            </button>
-          </div>
 
-          {(() => {
-            const grp = groups.find((g) => g.id === selectedGroupId) ?? selected;
-            const groupEvents = events.filter(
-              (e) => !e.archived && e.sharedGroupIds?.includes(grp.id),
-            );
-            const currentUid = user?.uid ?? grp.ownerUid;
-            const selectedWishlistMember = grp.members[selectedWishlistOwnerUid];
-            const t = today || localDate(new Date(), timezone);
+            {(() => {
+              const grp = groups.find((g) => g.id === selectedGroupId) ?? selected;
+              const groupEvents = events.filter(
+                (e) => !e.archived && e.sharedGroupIds?.includes(grp.id),
+              );
+              const currentUid = user?.uid ?? grp.ownerUid;
+              const selectedWishlistMember = grp.members[selectedWishlistOwnerUid];
+              const t = today || localDate(new Date(), timezone);
 
-            return (
-              <>
-                <section className="dnCard">
-                  <GiftBanner variant="santa" />
-                  <div className="dnDetailHead">
-                    <div>
-                      <p className="dnEyebrow">Your celebration</p>
-                      <h2 className="dnTitle">{grp.name}</h2>
-                      <p className="dnSub">
-                        Invite code{" "}
-                        <strong className="dnCode">{grp.code}</strong>
-                        <button
-                          type="button"
-                          className="dnLinkBtn"
-                          onClick={() => {
-                            void navigator.clipboard.writeText(grp.code);
-                            toast("Invite code copied!");
-                          }}
-                        >
-                          Copy
-                        </button>
-                      </p>
+              return (
+                <>
+                  <DnHero
+                    title={grp.name}
+                    subtitle={`Invite code ${grp.code}`}
+                    banner={<GiftBanner variant="santa" />}
+                  />
+                  <DnCard>
+                    <div className="dnDetailHead">
+                      <button
+                        type="button"
+                        className="dnLinkBtn"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(grp.code);
+                          toast("Invite code copied!");
+                        }}
+                      >
+                        Copy invite code
+                      </button>
                       {grp.draw?.budgetNote && (
                         <p className="dnMeta">Budget: {grp.draw.budgetNote}</p>
                       )}
@@ -637,123 +398,116 @@ export default function SecretSantaExperience(props: SecretSantaExperienceProps)
                         </p>
                       )}
                     </div>
-                  </div>
-                  <h3 className="dnSection">Members</h3>
-                  <div className="dnChipGrid">
-                    {Object.values(grp.members || {}).map((m) => (
-                      <span key={m.uid} className="dnChip static">
-                        {m.name}
-                      </span>
-                    ))}
-                  </div>
-                </section>
-
-                <GroupDrawPanel
-                  group={grp}
-                  currentUid={currentUid}
-                  isOwner={currentUid === grp.ownerUid}
-                  wishlistsByUid={{ [currentUid]: wishlistItems }}
-                  onSaveDraw={async (draw) => {
-                    await saveDraw(grp.id, draw);
-                    setGroups((current) =>
-                      current.map((item) =>
-                        item.id === grp.id ? { ...item, draw } : item,
-                      ),
-                    );
-                    toast(
-                      draw.status === "setup"
-                        ? "Name draw cleared."
-                        : draw.status === "locked"
-                          ? "Name draw locked."
-                          : "Names drawn!",
-                    );
-                  }}
-                  onViewWishlist={openMemberWishlist}
-                />
-
-                <section className="dnCard dnWishCard">
-                  <h3 className="dnSection">Wish lists</h3>
-                  <p className="dnSub">No duplicate gifts — reserve an item privately.</p>
-                  <div className="wishlistMemberTabs">
-                    {Object.values(grp.members)
-                      .filter((member) => member.uid !== currentUid)
-                      .map((member) => (
-                        <button
-                          key={member.uid}
-                          type="button"
-                          className={`dnChip ${selectedWishlistOwnerUid === member.uid ? "on" : ""}`}
-                          onClick={() => openMemberWishlist(member.uid)}
-                        >
-                          {member.name}
-                        </button>
+                    <h3 className="dnSection">Members</h3>
+                    <DnChipGrid label="Members">
+                      {Object.values(grp.members || {}).map((m) => (
+                        <DnChip key={m.uid} static>
+                          {m.name}
+                        </DnChip>
                       ))}
-                    <button
-                      type="button"
-                      className="dnChip"
-                      onClick={() => setView("wishlist")}
-                    >
-                      Edit my list
-                    </button>
-                  </div>
-                  {selectedWishlistMember && (
-                    <WishlistReservationList
-                      items={memberWishlists[selectedWishlistMember.uid] ?? []}
-                      ownerUid={selectedWishlistMember.uid}
-                      currentUid={currentUid}
-                      onReservation={(itemId, action) =>
-                        changeReservation(
-                          selectedWishlistMember.uid,
-                          itemId,
-                          action,
-                        )
-                      }
-                    />
-                  )}
-                </section>
+                    </DnChipGrid>
+                  </DnCard>
 
-                <section className="dnCard">
-                  <h3 className="dnSection">Shared occasions</h3>
-                  {groupEvents.length === 0 ? (
-                    <p className="dnSub">No shared birthdays yet. Opt in from an occasion.</p>
-                  ) : (
-                    <div className="groupSharedFeed">
-                      {groupEvents.map((ev) => {
-                        const nextDate = nextOccurrence(ev, t);
-                        const days = daysBetween(t, nextDate);
-                        return (
-                          <div className="row" key={ev.id}>
-                            <div className="dt">
-                              <span>{MN[ev.month - 1].slice(0, 3)}</span>
-                              <b>{ev.day}</b>
-                            </div>
-                            <div className="grow">
-                              <b>{ev.name}</b>
-                              <br />
-                              <span className={`tag ${ev.type}`}>{ev.type}</span>
-                            </div>
-                            <span className={`pill ${days <= 7 ? "hot" : ""}`}>
-                              {days === 0 ? "Today" : `in ${days} days`}
-                            </span>
-                          </div>
-                        );
-                      })}
+                  <GroupDrawPanel
+                    group={grp}
+                    currentUid={currentUid}
+                    isOwner={currentUid === grp.ownerUid}
+                    wishlistsByUid={{ [currentUid]: wishlistItems }}
+                    onSaveDraw={async (draw) => {
+                      await saveDraw(grp.id, draw);
+                      setGroups((current) =>
+                        current.map((item) =>
+                          item.id === grp.id ? { ...item, draw } : item,
+                        ),
+                      );
+                      toast(
+                        draw.status === "setup"
+                          ? "Name draw cleared."
+                          : draw.status === "locked"
+                            ? "Name draw locked."
+                            : "Names drawn!",
+                      );
+                    }}
+                    onViewWishlist={openMemberWishlist}
+                  />
+
+                  <DnCard className="dnWishCard">
+                    <h3 className="dnSection">Wish lists</h3>
+                    <DnSub>No duplicate gifts — reserve an item privately.</DnSub>
+                    <div className="wishlistMemberTabs">
+                      {Object.values(grp.members)
+                        .filter((member) => member.uid !== currentUid)
+                        .map((member) => (
+                          <DnChip
+                            key={member.uid}
+                            active={selectedWishlistOwnerUid === member.uid}
+                            onClick={() => openMemberWishlist(member.uid)}
+                          >
+                            {member.name}
+                          </DnChip>
+                        ))}
+                      <DnChip onClick={() => setView("wishlist")}>Edit my list</DnChip>
                     </div>
-                  )}
-                </section>
-              </>
-            );
-          })()}
-        </div>
-      )}
+                    {selectedWishlistMember && (
+                      <WishlistReservationList
+                        items={memberWishlists[selectedWishlistMember.uid] ?? []}
+                        ownerUid={selectedWishlistMember.uid}
+                        currentUid={currentUid}
+                        onReservation={(itemId, action) =>
+                          changeReservation(
+                            selectedWishlistMember.uid,
+                            itemId,
+                            action,
+                          )
+                        }
+                      />
+                    )}
+                  </DnCard>
 
-      {view === "detail" && !selected && (
-        <section className="dnCard">
-          <p className="dnSub">No celebrations yet.</p>
-          <button type="button" className="dnContinue" onClick={() => setView("create")}>
-            Create a new celebration ›
-          </button>
-        </section>
-      )}
-    </div>
+                  <DnCard>
+                    <h3 className="dnSection">Shared occasions</h3>
+                    {groupEvents.length === 0 ? (
+                      <DnSub>No shared birthdays yet. Opt in from an occasion.</DnSub>
+                    ) : (
+                      <div className="groupSharedFeed">
+                        {groupEvents.map((ev) => {
+                          const nextDate = nextOccurrence(ev, t);
+                          const days = daysBetween(t, nextDate);
+                          return (
+                            <div className="row" key={ev.id}>
+                              <div className="dt">
+                                <span>{MN[ev.month - 1].slice(0, 3)}</span>
+                                <b>{ev.day}</b>
+                              </div>
+                              <div className="grow">
+                                <b>{ev.name}</b>
+                                <br />
+                                <span className={`tag ${ev.type}`}>{ev.type}</span>
+                              </div>
+                              <span className={`pill ${days <= 7 ? "hot" : ""}`}>
+                                {days === 0 ? "Today" : `in ${days} days`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </DnCard>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
+        {view === "detail" && !selected && (
+          <DnCard>
+            <DnSub>No celebrations yet.</DnSub>
+            <DnContinue onClick={() => setView("create")}>
+              Create a new celebration
+            </DnContinue>
+          </DnCard>
+        )}
+      </main>
+    </DnPage>
   );
 }

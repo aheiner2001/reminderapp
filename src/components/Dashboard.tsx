@@ -537,6 +537,93 @@ export default function Dashboard() {
 
   const currentYear = today ? parseInt(today.slice(0, 4), 10) : new Date().getFullYear();
 
+  // Full-page Secret Santa experience (matches assets PDF screenshots)
+  if (tab === "gro") {
+    return (
+      <SecretSantaExperience
+        user={user}
+        groups={groups}
+        selectedGroupId={selectedGroupId || groups[0]?.id || ""}
+        setSelectedGroupId={setSelectedGroupId}
+        setGroups={setGroups}
+        events={events}
+        today={today}
+        timezone={settings.timezone}
+        wishlistItems={wishlistItems}
+        setWishlistItems={setWishlistItems}
+        newWishTitle={newWishTitle}
+        setNewWishTitle={setNewWishTitle}
+        newWishUrl={newWishUrl}
+        setNewWishUrl={setNewWishUrl}
+        newWishNotes={newWishNotes}
+        setNewWishNotes={setNewWishNotes}
+        memberWishlists={memberWishlists}
+        selectedWishlistOwnerUid={selectedWishlistOwnerUid}
+        openMemberWishlist={openMemberWishlist}
+        changeReservation={changeReservation}
+        createGroup={async (name) => {
+          if (user) {
+            const grp = await createGroupCircle(
+              user.uid,
+              user.displayName || user.email?.split("@")[0] || "User",
+              user.email || "",
+              name,
+            );
+            setGroups((prev) => [...prev, grp]);
+            return grp;
+          }
+          const demoGrp: GroupCircle = {
+            id: crypto.randomUUID(),
+            name: name.trim(),
+            code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+            ownerUid: "demo-owner",
+            createdAt: new Date().toISOString(),
+            members: {
+              "demo-owner": {
+                uid: "demo-owner",
+                name: "You",
+                email: "you@example.com",
+                joinedAt: new Date().toISOString(),
+              },
+            },
+          };
+          setGroups((prev) => [...prev, demoGrp]);
+          return demoGrp;
+        }}
+        joinGroup={async (code) => {
+          if (user) {
+            const grp = await joinGroupByCode(
+              user.uid,
+              user.displayName || user.email?.split("@")[0] || "User",
+              user.email || "",
+              code,
+            );
+            setGroups((prev) =>
+              prev.some((g) => g.id === grp.id) ? prev : [...prev, grp],
+            );
+            return grp;
+          }
+          toast(`Demo: Code "${code.toUpperCase()}" — sign in to join live groups.`);
+          const existing = groups[0];
+          if (existing) return existing;
+          throw new Error(
+            "Sign in to join a live group, or create a celebration in demo mode.",
+          );
+        }}
+        saveWishlist={async (items) => {
+          if (user) await saveUserWishlist(user.uid, items);
+        }}
+        saveDraw={async (groupId, draw) => {
+          if (user) await updateGroupDraw(groupId, draw);
+        }}
+        toast={toast}
+        act={act}
+        onExit={() => setTab("over")}
+        onSignIn={login}
+      />
+    );
+  }
+
   return (
     <div className="wrap">
       <header>
@@ -892,85 +979,6 @@ export default function Dashboard() {
           onDelete={removePerson}
           onAddOccasion={addOccasionForPerson}
           busy={busy}
-        />
-      )}
-
-      {/* CELEBRATE / SECRET SANTA TAB — styled from assets PDF screenshots */}
-      {tab === "gro" && (
-        <SecretSantaExperience
-          user={user}
-          groups={groups}
-          selectedGroupId={selectedGroupId || groups[0]?.id || ""}
-          setSelectedGroupId={setSelectedGroupId}
-          setGroups={setGroups}
-          events={events}
-          today={today}
-          timezone={settings.timezone}
-          wishlistItems={wishlistItems}
-          setWishlistItems={setWishlistItems}
-          newWishTitle={newWishTitle}
-          setNewWishTitle={setNewWishTitle}
-          newWishUrl={newWishUrl}
-          setNewWishUrl={setNewWishUrl}
-          newWishNotes={newWishNotes}
-          setNewWishNotes={setNewWishNotes}
-          memberWishlists={memberWishlists}
-          selectedWishlistOwnerUid={selectedWishlistOwnerUid}
-          openMemberWishlist={openMemberWishlist}
-          changeReservation={changeReservation}
-          createGroup={async (name) => {
-            if (user) {
-              const grp = await createGroupCircle(
-                user.uid,
-                user.displayName || user.email?.split("@")[0] || "User",
-                user.email || "",
-                name,
-              );
-              setGroups((prev) => [...prev, grp]);
-              return grp;
-            }
-            const demoGrp: GroupCircle = {
-              id: crypto.randomUUID(),
-              name: name.trim(),
-              code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-              ownerUid: "demo-owner",
-              createdAt: new Date().toISOString(),
-              members: {
-                "demo-owner": {
-                  uid: "demo-owner",
-                  name: "You",
-                  email: "you@example.com",
-                  joinedAt: new Date().toISOString(),
-                },
-              },
-            };
-            setGroups((prev) => [...prev, demoGrp]);
-            return demoGrp;
-          }}
-          joinGroup={async (code) => {
-            if (user) {
-              const grp = await joinGroupByCode(
-                user.uid,
-                user.displayName || user.email?.split("@")[0] || "User",
-                user.email || "",
-                code,
-              );
-              setGroups((prev) => (prev.some((g) => g.id === grp.id) ? prev : [...prev, grp]));
-              return grp;
-            }
-            toast(`Demo: Code "${code.toUpperCase()}" — sign in to join live groups.`);
-            const existing = groups[0];
-            if (existing) return existing;
-            throw new Error("Sign in to join a live group, or create a celebration in demo mode.");
-          }}
-          saveWishlist={async (items) => {
-            if (user) await saveUserWishlist(user.uid, items);
-          }}
-          saveDraw={async (groupId, draw) => {
-            if (user) await updateGroupDraw(groupId, draw);
-          }}
-          toast={toast}
-          act={act}
         />
       )}
 

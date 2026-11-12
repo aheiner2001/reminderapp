@@ -7,6 +7,7 @@ import {
   type GroupDraw,
 } from "../lib/draws";
 import type { GroupCircle, WishlistItem } from "../lib/reminders";
+import { DnCard, DnContinue, DnSub, DnTitle } from "./dn/ui";
 
 interface GroupDrawPanelProps {
   group: GroupCircle;
@@ -102,16 +103,16 @@ export default function GroupDrawPanel({
   const setup = draft.status === "setup";
 
   return (
-    <section className="card drawPanel dnCard" aria-labelledby={`draw-title-${group.id}`}>
+    <DnCard className="drawPanel" aria-labelledby={`draw-title-${group.id}`}>
       <div className="drawHeading">
         <div>
           <span className="drawEyebrow">Secret Santa</span>
-          <h2 id={`draw-title-${group.id}`} className="dnTitle" style={{ fontSize: 22 }}>
+          <h2 id={`draw-title-${group.id}`} className="dnTitle">
             Draw names
           </h2>
-          <p className="dnSub">
+          <DnSub>
             Set exclusions if needed, then draw so nobody gets their own name.
-          </p>
+          </DnSub>
         </div>
         <span className={`drawStatus ${draft.status}`}>
           {draft.status === "setup" ? "Not drawn" : draft.status === "locked" ? "Locked" : "Drawn"}
@@ -189,14 +190,13 @@ export default function GroupDrawPanel({
               </ul>
             )}
           </div>
-          <button
-            type="button"
-            className="dnContinue drawPrimary"
+          <DnContinue
+            className="drawPrimary"
             disabled={saving || members.length < 2}
             onClick={drawNames}
           >
-            Draw names <span aria-hidden>›</span>
-          </button>
+            Draw names
+          </DnContinue>
           {members.length < 2 && <small>Add at least two members before drawing.</small>}
         </div>
       )}
@@ -264,6 +264,6 @@ export default function GroupDrawPanel({
       )}
 
       {error && <p className="err drawError" role="alert">{error}</p>}
-    </section>
+    </DnCard>
   );
 }

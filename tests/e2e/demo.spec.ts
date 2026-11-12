@@ -39,7 +39,7 @@ test("demo supports add, edit, preview, settings and mobile navigation", async (
   await page.getByRole("button", { name: "Events" }).click();
   await expect(page.getByText("Maya Test").first()).toBeVisible();
 
-  // Switch to Celebrate tab (DrawNames-style Secret Santa hub)
+  // Full-page Celebrate / Secret Santa experience
   await page.getByRole("button", { name: "Celebrate" }).click();
   await expect(
     page.getByRole("heading", { name: "Secret Santa Generator" }),
@@ -48,7 +48,8 @@ test("demo supports add, edit, preview, settings and mobile navigation", async (
   await expect(page.getByText(/The Family/i).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: /Draw names/i })).toBeVisible();
 
-  // Switch to Preview tab
+  // Leave full-page Celebrate, then open Preview
+  await page.getByRole("button", { name: "Reminders" }).click();
   await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.getByRole("heading", { name: "Preview a day’s email" })).toBeVisible();
 
