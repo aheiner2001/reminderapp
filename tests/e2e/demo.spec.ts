@@ -66,3 +66,55 @@ test("demo supports add, edit, preview, settings and mobile navigation", async (
 
   expect(errors).toEqual([]);
 });
+
+test("demo supports People notes and Secret Santa gifting flows", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "People" }).click();
+  await expect(page.getByRole("heading", { name: "People" })).toBeVisible();
+  await page.getByRole("button", { name: /Maya/ }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Person name", exact: true }),
+  ).toHaveValue("Maya");
+  await expect(page.getByText(/Pour-over coffee/)).toBeVisible();
+  await page
+    .getByRole("button", { name: /^Possible gifts 1 links$/ })
+    .click();
+  await expect(
+    page.getByRole("link", { name: /Local pottery studio/ }),
+  ).toHaveAttribute("href", "https://example.com/pottery");
+
+  await page.getByRole("button", { name: "Groups" }).click();
+  await expect(page.getByText("Code:").first()).toContainText("FAM778");
+  await expect(page.getByText(/Invite code:/)).toContainText("FAM778");
+  await expect(page.getByRole("heading", { name: "Name draw" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Draw names" }).click();
+  await expect(page.getByText(/You are gifting/)).toBeVisible();
+
+  await page
+    .getByRole("button", { name: "View Grandma Joan's wishlist" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Grandma Joan's wishlist" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Reserve Garden kneeler" }).click();
+  await expect(
+    page.getByRole("button", { name: "Unreserve Garden kneeler" }),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("heading", { name: "Name draw" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+
+  expect(errors).toEqual([]);
+});
