@@ -29,4 +29,21 @@ describe("people", () => {
     const p = { ...createBlankPerson("A"), id: "1", sections: [] };
     expect(() => validatePerson(p)).toThrow(/section/i);
   });
+
+  it("rejects names longer than 100 characters", () => {
+    const p = { ...createBlankPerson("a".repeat(101)), id: "1" };
+    expect(() => validatePerson(p)).toThrow(/1 and 100/i);
+  });
+
+  it("rejects empty section titles", () => {
+    const p = createBlankPerson("Sam");
+    p.sections[0].title = "";
+    expect(() => validatePerson({ ...p, id: "1" })).toThrow(/section title/i);
+  });
+
+  it("rejects section bodies over 5000 characters", () => {
+    const p = createBlankPerson("Sam");
+    p.sections[0].body = "x".repeat(5001);
+    expect(() => validatePerson({ ...p, id: "1" })).toThrow(/5,000/i);
+  });
 });
