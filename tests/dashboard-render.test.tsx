@@ -36,5 +36,23 @@ describe("Dashboard UI Component", () => {
     expect(screen.queryByText(/Delivery Pipeline/i)).toBeNull();
     expect(screen.queryByText(/Alerts today/i)).toBeNull();
   });
+
+  it("opens a group member wishlist and reserves an available item", () => {
+    render(<Dashboard />);
+    fireEvent.click(screen.getByRole("button", { name: /Groups/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "View Grandma Joan's wishlist" }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Grandma Joan's wishlist" }),
+    ).toBeDefined();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reserve Garden kneeler" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Unreserve Garden kneeler" }),
+    ).toBeDefined();
+  });
 });
 

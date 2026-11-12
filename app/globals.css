@@ -734,6 +734,58 @@ label.f textarea {
   gap: 12px;
 }
 
+.wishlistItem.reserved {
+  background: color-mix(in srgb, var(--pr) 5%, var(--sf));
+}
+
+.wishlistLink {
+  color: var(--pr);
+  font-size: 13px;
+}
+
+.wishlistNotes {
+  margin: 2px 0 0;
+  color: var(--mu);
+  font-size: 13px;
+}
+
+.reservationStatus {
+  display: inline-flex;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--pr) 12%, var(--sf));
+  color: var(--pr);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reservationButton {
+  flex: none;
+}
+
+.sharedWishlists {
+  padding-top: 18px;
+  border-top: 1px solid var(--ln);
+}
+
+.wishlistMemberTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.memberWishlist {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.memberWishlist h3 {
+  margin-top: 0;
+}
+
 .drawPanel {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--pr) 18%, var(--ln));

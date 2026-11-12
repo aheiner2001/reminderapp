@@ -21,6 +21,8 @@ import {
   fetchGroupOccasions,
   saveUserWishlist,
   fetchUserWishlist,
+  fetchMemberWishlist,
+  reserveWishlistItem,
   fetchUserPeople,
   saveUserPerson,
   deleteUserPerson,
@@ -44,6 +46,8 @@ import { validateSettings } from "../lib/access";
 import { createBlankPerson, type Person } from "../lib/people";
 import PeoplePanel from "./PeoplePanel";
 import GroupDrawPanel from "./GroupDrawPanel";
+import WishlistReservationList from "./WishlistReservationList";
+import { applyReservation } from "../lib/draws";
 
 type Tab = "over" | "ev" | "peo" | "gro" | "pre" | "his" | "set";
 type Delivery = { id: string; date: string; status: string; createdAt: string; attempts?: number };
@@ -129,6 +133,31 @@ const demoGroups: GroupCircle[] = [
   },
 ];
 
+const demoMemberWishlists: Record<string, WishlistItem[]> = {
+  "demo-2": [
+    {
+      id: "demo-wish-garden",
+      title: "Garden kneeler",
+      notes: "A folding one with side handles",
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: "demo-wish-tea",
+      title: "Loose-leaf tea sampler",
+      createdAt: new Date().toISOString(),
+      reservedByUid: "demo-3",
+      reservedAt: new Date().toISOString(),
+    },
+  ],
+  "demo-3": [
+    {
+      id: "demo-wish-pottery",
+      title: "Pottery class voucher",
+      createdAt: new Date().toISOString(),
+    },
+  ],
+};
+
 function ord(n: number) {
   return n + (n % 100 > 10 && n % 100 < 14 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
 }
@@ -167,6 +196,9 @@ export default function Dashboard() {
     { id: "w-1", title: "Warm winter wool socks", notes: "Size M, forest green or charcoal", createdAt: new Date().toISOString() },
     { id: "w-2", title: "Chemex Pour-Over Glass Coffee Maker", url: "https://example.com/chemex", notes: "6 cup classic", createdAt: new Date().toISOString() },
   ]);
+  const [memberWishlists, setMemberWishlists] =
+    useState<Record<string, WishlistItem[]>>(demoMemberWishlists);
+  const [selectedWishlistOwnerUid, setSelectedWishlistOwnerUid] = useState("");
   const [newWishTitle, setNewWishTitle] = useState("");
   const [newWishUrl, setNewWishUrl] = useState("");
   const [newWishNotes, setNewWishNotes] = useState("");
@@ -197,6 +229,8 @@ export default function Dashboard() {
           setHistory([]);
           setGroups(u ? [] : demoGroups);
           setSelectedGroupId(u ? "" : "demo-group-1");
+          setMemberWishlists(u ? {} : demoMemberWishlists);
+          setSelectedWishlistOwnerUid("");
           setBusy(false);
           setToday(now);
           setPreviewDate(now);
@@ -286,6 +320,37 @@ export default function Dashboard() {
     } finally {
       if (generation === authGeneration.current) setBusy(false);
     }
+  }
+
+  async function openMemberWishlist(ownerUid: string) {
+    setSelectedWishlistOwnerUid(ownerUid);
+    if (!user) return;
+    await act(async (generation) => {
+      const items = await fetchMemberWishlist(ownerUid);
+      if (generation !== authGeneration.current) return;
+      setMemberWishlists((current) => ({ ...current, [ownerUid]: items }));
+    });
+  }
+
+  async function changeReservation(
+    ownerUid: string,
+    itemId: string,
+    action: "reserve" | "unreserve",
+  ) {
+    const actorUid = user?.uid ?? "demo-owner";
+    await act(async (generation) => {
+      const updated = user
+        ? await reserveWishlistItem(ownerUid, itemId, actorUid, action)
+        : applyReservation(
+            memberWishlists[ownerUid] ?? [],
+            itemId,
+            actorUid,
+            action,
+          );
+      if (generation !== authGeneration.current) return;
+      setMemberWishlists((current) => ({ ...current, [ownerUid]: updated }));
+      toast(action === "reserve" ? "Gift reserved privately." : "Reservation removed.");
+    });
   }
 
   async function login() {
@@ -954,6 +1019,9 @@ export default function Dashboard() {
                 const groupEvents = events.filter(
                   (e) => !e.archived && e.sharedGroupIds && e.sharedGroupIds.includes(grp.id),
                 );
+                const currentUid = user?.uid ?? grp.ownerUid;
+                const selectedWishlistMember =
+                  grp.members[selectedWishlistOwnerUid];
 
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1049,6 +1117,11 @@ export default function Dashboard() {
                                     </div>
                                   )}
                                   {item.notes && <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--mu)" }}>{item.notes}</p>}
+                                  {item.reservedByUid && (
+                                    <span className="reservationStatus">
+                                      Someone reserved this
+                                    </span>
+                                  )}
                                 </div>
                                 <button
                                   className="btn d"
@@ -1122,6 +1195,46 @@ export default function Dashboard() {
                           </button>
                         </form>
                       </div>
+
+                      <div className="sharedWishlists">
+                        <h3>Group wishlists</h3>
+                        <p className="note">
+                          Reserve a gift privately so another shopper does not buy the same item.
+                        </p>
+                        <div className="wishlistMemberTabs">
+                          {Object.values(grp.members)
+                            .filter((member) => member.uid !== currentUid)
+                            .map((member) => (
+                              <button
+                                key={member.uid}
+                                type="button"
+                                className={`btn${selectedWishlistOwnerUid === member.uid ? " p" : ""}`}
+                                aria-label={`View ${member.name}'s wishlist`}
+                                onClick={() => openMemberWishlist(member.uid)}
+                              >
+                                {member.name}
+                              </button>
+                            ))}
+                        </div>
+
+                        {selectedWishlistMember && (
+                          <div className="memberWishlist">
+                            <h3>{selectedWishlistMember.name}&apos;s wishlist</h3>
+                            <WishlistReservationList
+                              items={memberWishlists[selectedWishlistMember.uid] ?? []}
+                              ownerUid={selectedWishlistMember.uid}
+                              currentUid={currentUid}
+                              onReservation={(itemId, action) =>
+                                changeReservation(
+                                  selectedWishlistMember.uid,
+                                  itemId,
+                                  action,
+                                )
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <GroupDrawPanel
@@ -1146,12 +1259,7 @@ export default function Dashboard() {
                               : "Name draw saved.",
                         );
                       }}
-                      onViewWishlist={(uid) => {
-                        const member = grp.members[uid];
-                        toast(
-                          `${member?.name ?? "Member"}'s wishlist will open here when shared wishlist viewing is added.`,
-                        );
-                      }}
+                      onViewWishlist={openMemberWishlist}
                     />
                   </div>
                 );
