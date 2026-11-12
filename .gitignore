@@ -9,3 +9,5 @@ lambda/dist/
 *.tsbuildinfo
 playwright-report/
 test-results/
+
+.worktrees/
