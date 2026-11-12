@@ -116,4 +116,13 @@ describe("calendar reminders", () => {
     });
     expect(ev.sharedGroupIds).toEqual(["grp-1", "  grp-2  "]);
   });
+  it("accepts optional personId and strips blank", () => {
+    const e = validateEvent({
+      ...event,
+      personId: "  person-1  ",
+    });
+    expect(e.personId).toBe("person-1");
+    const e2 = validateEvent({ ...event, personId: "   " });
+    expect(e2.personId == null || e2.personId === "").toBe(true);
+  });
 });

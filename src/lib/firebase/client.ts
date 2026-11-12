@@ -1,5 +1,10 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import {
+  initializeFirestore,
+  type Firestore,
+} from "firebase/firestore";
+
 const sandbox = {
   apiKey: "AIzaSyCyXhVv05H51JMmtZ3gQ_zSWPQ_3PIHwfk",
   authDomain: "sandbox-ed1e2.firebaseapp.com",
@@ -8,7 +13,8 @@ const sandbox = {
   messagingSenderId: "741844679458",
   appId: "1:741844679458:web:0a30a7ba0d5e666dac837b",
 };
-export function browserAuth() {
+
+function browserApp() {
   if (typeof window === "undefined")
     throw new Error("Sign-in is available in the browser.");
   const customProject = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -25,5 +31,20 @@ export function browserAuth() {
       "Set all six NEXT_PUBLIC_FIREBASE variables before building.",
     );
   const config = customProject ? custom : sandbox;
-  return getAuth(getApps().length ? getApp() : initializeApp(config));
+  return getApps().length ? getApp() : initializeApp(config);
+}
+
+let firestore: Firestore | null = null;
+
+export function browserAuth() {
+  return getAuth(browserApp());
+}
+
+export function browserFirestore(): Firestore {
+  if (!firestore) {
+    firestore = initializeFirestore(browserApp(), {
+      ignoreUndefinedProperties: true,
+    });
+  }
+  return firestore;
 }

@@ -1,3 +1,5 @@
+import type { GroupDraw } from "./draws";
+
 export interface ReminderEvent {
   id: string;
   name: string;
@@ -15,6 +17,7 @@ export interface ReminderEvent {
   monthly: boolean;
   archived: boolean;
   sharedGroupIds?: string[];
+  personId?: string | null;
 }
 
 export interface GroupMember {
@@ -31,6 +34,7 @@ export interface GroupCircle {
   ownerUid: string;
   createdAt: string;
   members: Record<string, GroupMember>;
+  draw?: GroupDraw | null;
 }
 
 export interface WishlistItem {
@@ -39,6 +43,8 @@ export interface WishlistItem {
   url?: string;
   notes?: string;
   createdAt: string;
+  reservedByUid?: string | null;
+  reservedAt?: string | null;
 }
 
 export interface UserWishlist {
@@ -180,6 +186,9 @@ export function validateEvent(input: unknown): ReminderEvent {
       throw new Error("Invalid reminder preference.");
   if (v.notes != null && (typeof v.notes !== "string" || v.notes.length > 2000))
     throw new Error("Notes must be under 2,000 characters.");
+  const personIdRaw =
+    typeof v.personId === "string" ? v.personId.trim() : "";
+  const personId = personIdRaw || undefined;
   return {
     id: typeof v.id === "string" ? v.id : "",
     name,
@@ -203,6 +212,7 @@ export function validateEvent(input: unknown): ReminderEvent {
     sharedGroupIds: Array.isArray(v.sharedGroupIds)
       ? v.sharedGroupIds.filter((g: any) => typeof g === "string" && g.trim().length > 0)
       : undefined,
+    personId,
   };
 }
 export function upcoming(

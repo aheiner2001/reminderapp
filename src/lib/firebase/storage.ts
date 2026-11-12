@@ -1,14 +1,14 @@
 import {
-  getFirestore,
   doc,
   setDoc,
   getDoc,
   collection,
   getDocs,
   deleteDoc,
+  runTransaction,
   type Firestore,
 } from "firebase/firestore";
-import { browserAuth } from "./client";
+import { browserFirestore } from "./client";
 import {
   validateEvent,
   type ReminderEvent,
@@ -20,6 +20,8 @@ import {
   type UserWishlist,
 } from "../reminders";
 import { validateSettings } from "../access";
+import { validatePerson, type Person } from "../people";
+import { applyReservation, type GroupDraw } from "../draws";
 
 let dbInstance: Firestore | null = null;
 
@@ -28,8 +30,7 @@ export function getClientDb(): Firestore {
     throw new Error("Client Firestore is only available in the browser.");
   }
   if (!dbInstance) {
-    const auth = browserAuth();
-    dbInstance = getFirestore(auth.app);
+    dbInstance = browserFirestore();
   }
   return dbInstance;
 }
@@ -43,6 +44,10 @@ export function formatStoragePath(uid: string, type: "events" | "profile"): stri
 
 export function validateClientEvent(event: unknown): ReminderEvent {
   return validateEvent(event);
+}
+
+export function validateClientPerson(person: unknown): Person {
+  return validatePerson(person);
 }
 
 export async function fetchUserData(uid: string): Promise<{
@@ -198,6 +203,7 @@ export async function joinGroupByCode(
   }
 
   const group = matchedGroup as GroupCircle;
+  assertGroupOpenForJoin(group.draw);
   const now = new Date().toISOString();
 
   group.members[uid] = {
@@ -215,6 +221,16 @@ export async function joinGroupByCode(
   await setDoc(userGroupRef, { groupId: group.id, joinedAt: now });
 
   return group;
+}
+
+export function assertGroupOpenForJoin(
+  draw: Pick<GroupDraw, "status"> | null | undefined,
+): void {
+  if (draw?.status === "drawn" || draw?.status === "locked") {
+    throw new Error(
+      "This name draw has already started. Ask the organizer to clear the draw first.",
+    );
+  }
 }
 
 export async function fetchUserGroups(uid: string): Promise<GroupCircle[]> {
@@ -297,4 +313,123 @@ export async function fetchUserWishlist(uid: string): Promise<WishlistItem[]> {
     // fallback
   }
   return [];
+}
+
+export const fetchMemberWishlist = fetchUserWishlist;
+
+export async function fetchUserPeople(uid: string): Promise<Person[]> {
+  const db = getClientDb();
+  const people: Person[] = [];
+  try {
+    const peopleCol = collection(db, `reminderUsers/${uid}`, "people");
+    const snap = await getDocs(peopleCol);
+    snap.forEach((docSnap) => {
+      try {
+        people.push(validatePerson({ ...docSnap.data(), id: docSnap.id }));
+      } catch {
+        // Skip corrupted documents gracefully
+      }
+    });
+  } catch (err) {
+    console.warn("Failed to fetch people", err);
+  }
+  return people;
+}
+
+export async function saveUserPerson(
+  uid: string,
+  person: Person,
+): Promise<Person> {
+  const validated = validatePerson(person);
+  const id =
+    validated.id && !validated.id.startsWith("demo-")
+      ? validated.id
+      : crypto.randomUUID();
+  const now = new Date().toISOString();
+  const payload: Person = {
+    ...validated,
+    id,
+    createdAt: validated.createdAt || now,
+    updatedAt: now,
+  };
+  const db = getClientDb();
+  const personRef = doc(db, `reminderUsers/${uid}/people`, id);
+  await setDoc(personRef, payload);
+  return payload;
+}
+
+export function clearPersonIdFromEvents(
+  events: ReminderEvent[],
+  personId: string,
+): ReminderEvent[] {
+  return events
+    .filter((ev) => ev.personId === personId)
+    .map((ev) => ({ ...ev, personId: null }));
+}
+
+export async function deleteUserPerson(
+  uid: string,
+  personId: string,
+): Promise<void> {
+  const db = getClientDb();
+  const personRef = doc(db, `reminderUsers/${uid}/people`, personId);
+  await deleteDoc(personRef);
+
+  const eventsCol = collection(db, `reminderUsers/${uid}`, "events");
+  const eventsSnap = await getDocs(eventsCol);
+  const events: ReminderEvent[] = [];
+  eventsSnap.forEach((docSnap) => {
+    try {
+      events.push(validateEvent({ ...docSnap.data(), id: docSnap.id }));
+    } catch {
+      // ignore corrupted
+    }
+  });
+  const updates = clearPersonIdFromEvents(events, personId).map((cleared) =>
+    saveUserEvent(uid, cleared),
+  );
+  await Promise.all(updates);
+}
+
+export async function updateGroupDraw(
+  groupId: string,
+  draw: GroupDraw,
+): Promise<void> {
+  const db = getClientDb();
+  const groupRef = doc(db, "reminderGroups", groupId);
+  await setDoc(groupRef, { draw }, { merge: true });
+}
+
+export const saveGroupDraw = updateGroupDraw;
+
+export async function clearGroupDraw(groupId: string): Promise<void> {
+  const db = getClientDb();
+  const groupRef = doc(db, "reminderGroups", groupId);
+  await setDoc(groupRef, { draw: null }, { merge: true });
+}
+
+export async function reserveWishlistItem(
+  ownerUid: string,
+  itemId: string,
+  actorUid: string,
+  action: "reserve" | "unreserve",
+): Promise<WishlistItem[]> {
+  const db = getClientDb();
+  const ref = doc(db, `reminderUsers/${ownerUid}/profile`, "wishlist");
+
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) {
+      throw new Error("Wishlist not found.");
+    }
+
+    const data = snapshot.data();
+    const items = Array.isArray(data.items) ? data.items as WishlistItem[] : [];
+    const updated = applyReservation(items, itemId, actorUid, action);
+    transaction.update(ref, {
+      items: updated,
+      updatedAt: new Date().toISOString(),
+    });
+    return updated;
+  });
 }

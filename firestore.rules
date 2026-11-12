@@ -1,8 +1,68 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /reminderUsers/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /reminderUsers/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /people/{personId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /events/{eventId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /groups/{groupId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /profile/{docId} {
+        allow read: if isOwner(userId)
+          || (signedIn() && docId == 'wishlist');
+        allow create, update, delete: if isOwner(userId);
+        allow update: if signedIn()
+          && request.auth.uid != userId
+          && docId == 'wishlist'
+          && request.resource.data.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['items', 'updatedAt']);
+        // Known gap: wishlist items are stored in an array, so rules cannot
+        // constrain a shopper update to one reservation field within one item.
+        // The transaction prevents races, while the UI limits intended edits.
+      }
+      match /{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    match /reminderGroups/{groupId} {
+      function isOwnerGroupUpdate() {
+        return request.auth.uid == resource.data.ownerUid;
+      }
+      function isJoinOnlyUpdate() {
+        return !(request.auth.uid in resource.data.members)
+          && request.auth.uid in request.resource.data.members
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['members'])
+          && request.resource.data.members.diff(resource.data.members)
+            .affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.members[request.auth.uid].uid
+            == request.auth.uid;
+      }
+
+      // Known tradeoff: join-by-code scans this collection, so every signed-in
+      // user can read group documents, including invite codes and draw data.
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.ownerUid;
+      allow update: if signedIn()
+        && (isOwnerGroupUpdate() || isJoinOnlyUpdate());
+      allow delete: if signedIn()
+        && request.auth.uid == resource.data.ownerUid;
     }
   }
 }
