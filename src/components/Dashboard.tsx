@@ -628,7 +628,7 @@ export default function Dashboard() {
     <div className="wrap">
       <header>
         <h1 aria-label="Remember home">
-          <span className="logoMark" aria-hidden="true">✓</span>
+          <span className="logoMark" aria-hidden="true" />
           Dates to Remember
         </h1>
         <div className="headerActions">
