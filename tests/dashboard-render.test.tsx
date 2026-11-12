@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import Dashboard from "../src/components/Dashboard";
 
 vi.mock("firebase/auth", () => ({
@@ -13,12 +13,22 @@ vi.mock("firebase/auth", () => ({
   GoogleAuthProvider: class {},
 }));
 
+afterEach(cleanup);
+
 describe("Dashboard UI Component", () => {
   it("renders brand header and navigation", () => {
     render(<Dashboard />);
     expect(screen.getByLabelText(/Remember home/i)).toBeDefined();
     expect(screen.getByRole("button", { name: /Overview/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /People/i })).toBeDefined();
     expect(screen.getByRole("button", { name: /Groups/i })).toBeDefined();
+  });
+
+  it("renders demo people in the People tab", () => {
+    render(<Dashboard />);
+    fireEvent.click(screen.getByRole("button", { name: /People/i }));
+    expect(screen.getByRole("heading", { name: /People/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Maya/i })).toBeDefined();
   });
 
   it("does not render technical pipeline cards on overview", () => {

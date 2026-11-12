@@ -21,6 +21,9 @@ import {
   fetchGroupOccasions,
   saveUserWishlist,
   fetchUserWishlist,
+  fetchUserPeople,
+  saveUserPerson,
+  deleteUserPerson,
 } from "../lib/firebase/storage";
 import {
   blankEvent,
@@ -37,8 +40,10 @@ import {
   type WishlistItem,
 } from "../lib/reminders";
 import { validateSettings } from "../lib/access";
+import { createBlankPerson, type Person } from "../lib/people";
+import PeoplePanel from "./PeoplePanel";
 
-type Tab = "over" | "ev" | "gro" | "pre" | "his" | "set";
+type Tab = "over" | "ev" | "peo" | "gro" | "pre" | "his" | "set";
 type Delivery = { id: string; date: string; status: string; createdAt: string; attempts?: number };
 
 const MN = [
@@ -46,10 +51,62 @@ const MN = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+const demoPeople: Person[] = [
+  {
+    id: "demo-person-maya",
+    name: "Maya",
+    notesSummary: "Loves practical gifts with a personal touch.",
+    sections: [
+      {
+        id: "demo-maya-interests",
+        title: "Interests",
+        body: "Pour-over coffee, pottery classes, and weekend hikes.",
+        links: [],
+      },
+      {
+        id: "demo-maya-gifts",
+        title: "Possible gifts",
+        body: "A handmade mug or trail guide for a nearby park.",
+        links: [
+          {
+            id: "demo-maya-link",
+            title: "Local pottery studio",
+            url: "https://example.com/pottery",
+            createdAt: "2026-10-01T00:00:00.000Z",
+          },
+        ],
+      },
+    ],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  },
+  {
+    id: "demo-person-joan",
+    name: "Grandma Joan",
+    notesSummary: "Cozy, useful gifts are always a win.",
+    sections: [
+      {
+        id: "demo-joan-interests",
+        title: "Interests",
+        body: "Crosswords, family photos, and gardening.",
+        links: [],
+      },
+      {
+        id: "demo-joan-gifts",
+        title: "Possible gifts",
+        body: "Photo calendar or soft gardening gloves.",
+        links: [],
+      },
+    ],
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  },
+];
+
 const demos: ReminderEvent[] = [
   { ...blankEvent, id: "demo-1", name: "Roger", type: "Birthday", month: 10, day: 25, year: 1958, emailEnabled: true },
-  { ...blankEvent, id: "demo-2", name: "Grandma Joan", type: "Birthday", month: 10, day: 28, year: 1944, daily: true, emailEnabled: true },
-  { ...blankEvent, id: "demo-3", name: "Maya", type: "Birthday", month: 11, day: 2, year: 1991, emailEnabled: true },
+  { ...blankEvent, id: "demo-2", name: "Grandma Joan", type: "Birthday", month: 10, day: 28, year: 1944, daily: true, emailEnabled: true, personId: "demo-person-joan" },
+  { ...blankEvent, id: "demo-3", name: "Maya", type: "Birthday", month: 11, day: 2, year: 1991, emailEnabled: true, personId: "demo-person-maya" },
   { ...blankEvent, id: "demo-4", name: "Taylor & Sam", type: "Anniversary", month: 11, day: 7, year: 2014, emailEnabled: true },
   { ...blankEvent, id: "demo-5", name: "Priya", type: "Birthday", month: 11, day: 14, leadDays: 3, emailEnabled: true },
   { ...blankEvent, id: "demo-6", name: "Alex & Jordan", type: "Anniversary", month: 12, day: 5, year: 2019, emailEnabled: false },
@@ -89,12 +146,14 @@ export default function Dashboard() {
   const [toastMsg, setToastMsg] = useState("");
   const [toastTimer, setToastTimer] = useState<any>(null);
   const [editing, setEditing] = useState<ReminderEvent | null>(null);
+  const [keepGiftNotes, setKeepGiftNotes] = useState(false);
   const [dialogError, setDialogError] = useState("");
   const [newTypeName, setNewTypeName] = useState("");
   const [isAddingCustomType, setIsAddingCustomType] = useState(false);
   const [armedDelete, setArmedDelete] = useState<string | null>(null);
   const [history, setHistory] = useState<Delivery[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [people, setPeople] = useState<Person[]>(demoPeople);
 
   // Groups and Wishlists state
   const [groups, setGroups] = useState<GroupCircle[]>(demoGroups);
@@ -129,7 +188,9 @@ export default function Dashboard() {
           identityUid.current = u?.uid ?? null;
           authGeneration.current += 1;
           setEditing(null);
+          setKeepGiftNotes(false);
           setEvents(u ? [] : demos);
+          setPeople(u ? [] : demoPeople);
           setSettings(defaultSettings);
           setHistory([]);
           setGroups(u ? [] : demoGroups);
@@ -152,6 +213,7 @@ export default function Dashboard() {
     if (!authReady) return;
     if (!user) {
       setEvents(demos);
+      setPeople(demoPeople);
       setSettings(defaultSettings);
       return;
     }
@@ -191,6 +253,8 @@ export default function Dashboard() {
             }
             const wishes = await fetchUserWishlist(user.uid);
             setWishlistItems(wishes);
+            const savedPeople = await fetchUserPeople(user.uid);
+            setPeople(savedPeople);
           } catch {
             // non-fatal
           }
@@ -231,7 +295,26 @@ export default function Dashboard() {
 
   async function saveOccasion(value: ReminderEvent) {
     await act(async (generation) => {
-      const validated = validateEvent(value);
+      let candidate = value;
+      if (keepGiftNotes && !candidate.personId && candidate.name.trim()) {
+        let linkedPerson = people.find(
+          (person) => person.name.toLowerCase() === candidate.name.trim().toLowerCase(),
+        );
+        if (!linkedPerson) {
+          const now = new Date().toISOString();
+          const created: Person = {
+            ...createBlankPerson(candidate.name),
+            id: crypto.randomUUID(),
+            createdAt: now,
+            updatedAt: now,
+          };
+          linkedPerson = user ? await saveUserPerson(user.uid, created) : created;
+          if (generation !== authGeneration.current) return;
+          setPeople((current) => [...current, linkedPerson!]);
+        }
+        candidate = { ...candidate, personId: linkedPerson.id };
+      }
+      const validated = validateEvent(candidate);
 
       // If a new custom type was used that isn't yet in settings.customTypes or built-ins, save it
       const builtIns = ["Birthday", "Anniversary"];
@@ -285,6 +368,49 @@ export default function Dashboard() {
       );
       setEditing(null);
       toast(user ? "Occasion saved." : "Saved locally (demo). Sign in to sync.");
+    });
+  }
+
+  async function savePerson(person: Person) {
+    await act(async (generation) => {
+      const saved = user ? await saveUserPerson(user.uid, person) : person;
+      if (generation !== authGeneration.current) return;
+      setPeople((current) =>
+        current.some((item) => item.id === saved.id)
+          ? current.map((item) => (item.id === saved.id ? saved : item))
+          : [...current, saved],
+      );
+      toast(user ? "Gift notes saved." : "Saved locally (demo). Sign in to sync.");
+    });
+  }
+
+  async function removePerson(person: Person) {
+    await act(async (generation) => {
+      if (user) await deleteUserPerson(user.uid, person.id);
+      if (generation !== authGeneration.current) return;
+      setPeople((current) => current.filter((item) => item.id !== person.id));
+      setEvents((current) =>
+        current.map((event) =>
+          event.personId === person.id ? { ...event, personId: null } : event,
+        ),
+      );
+      toast("Person deleted. Their occasions were kept.");
+    });
+  }
+
+  function addOccasionForPerson(person: Person) {
+    setDialogError("");
+    setKeepGiftNotes(false);
+    setIsAddingCustomType(false);
+    setNewTypeName("");
+    setEditing({
+      ...blankEvent,
+      name: person.name,
+      personId: person.id,
+      month: new Date().getMonth() + 1,
+      day: 1,
+      checkpoints: [30, 7, 1, 0],
+      remindTime: settings.sendTime || "09:00",
     });
   }
 
@@ -359,6 +485,7 @@ export default function Dashboard() {
             className="btn p"
             onClick={() => {
               setDialogError("");
+              setKeepGiftNotes(true);
               setIsAddingCustomType(false);
               setNewTypeName("");
               setEditing({
@@ -405,6 +532,7 @@ export default function Dashboard() {
         {[
           ["over", "Overview"],
           ["ev", "Events"],
+          ["peo", "People"],
           ["gro", "Groups"],
           ["pre", "Preview"],
           ["his", "History"],
@@ -460,6 +588,7 @@ export default function Dashboard() {
                   className="btn p"
                   onClick={() => {
                     setDialogError("");
+                    setKeepGiftNotes(true);
                     setIsAddingCustomType(false);
                     setNewTypeName("");
                     setEditing({
@@ -544,6 +673,7 @@ export default function Dashboard() {
                         onClick={() => {
                           const orig = events.find((e) => e.id === x.id);
                           if (orig) {
+                            setKeepGiftNotes(false);
                             setIsAddingCustomType(false);
                             setNewTypeName("");
                             setEditing(orig);
@@ -656,7 +786,10 @@ export default function Dashboard() {
                     </td>
                     <td data-l="Actions">
                       <div className="acts">
-                        <button className="btn" onClick={() => setEditing(e)}>
+                        <button className="btn" onClick={() => {
+                          setKeepGiftNotes(false);
+                          setEditing(e);
+                        }}>
                           Edit
                         </button>
                         <button className="btn" onClick={() => toggleArchive(e.id)}>
@@ -685,6 +818,17 @@ export default function Dashboard() {
             Lead time controls daily countdowns and advance alerts. Monthly and weekly summaries compile automatically.
           </p>
         </section>
+      )}
+
+      {/* PEOPLE TAB */}
+      {tab === "peo" && (
+        <PeoplePanel
+          people={people}
+          onSave={savePerson}
+          onDelete={removePerson}
+          onAddOccasion={addOccasionForPerson}
+          busy={busy}
+        />
       )}
 
       {/* GROUPS TAB */}
@@ -1236,6 +1380,43 @@ export default function Dashboard() {
                   placeholder="e.g. Grandma Joan, Maya, Our Anniversary"
                   required
                 />
+              </label>
+
+              <label className="f">
+                Person
+                <select
+                  value={editing.personId ?? ""}
+                  onChange={(e) => {
+                    const personId = e.target.value || null;
+                    setEditing({ ...editing, personId });
+                    if (personId) setKeepGiftNotes(false);
+                  }}
+                >
+                  <option value="">Not linked to a person</option>
+                  {people
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((person) => (
+                      <option key={person.id} value={person.id}>{person.name}</option>
+                    ))}
+                </select>
+              </label>
+
+              <label className="keepGiftNotes">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editing.personId) || keepGiftNotes}
+                  disabled={Boolean(editing.personId)}
+                  onChange={(e) => setKeepGiftNotes(e.target.checked)}
+                />
+                <span>
+                  Also keep gift notes for this person
+                  <small>
+                    {editing.personId
+                      ? "This occasion is linked to an existing person."
+                      : "Creates a person with Interests and Possible gifts sections."}
+                  </small>
+                </span>
               </label>
 
               <label className="f">
