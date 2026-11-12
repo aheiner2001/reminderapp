@@ -39,11 +39,14 @@ test("demo supports add, edit, preview, settings and mobile navigation", async (
   await page.getByRole("button", { name: "Events" }).click();
   await expect(page.getByText("Maya Test").first()).toBeVisible();
 
-  // Switch to Groups tab
-  await page.getByRole("button", { name: "Groups" }).click();
-  await expect(page.getByRole("heading", { name: "Your Groups" })).toBeVisible();
+  // Switch to Celebrate tab (DrawNames-style Secret Santa hub)
+  await page.getByRole("button", { name: "Celebrate" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Secret Santa Generator" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "My celebrations" }).click();
   await expect(page.getByText(/The Family/i).first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Christmas Wishlists/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Draw names/i })).toBeVisible();
 
   // Switch to Preview tab
   await page.getByRole("button", { name: "Preview" }).click();
@@ -89,27 +92,25 @@ test("demo supports People notes and Secret Santa gifting flows", async ({
     page.getByRole("link", { name: /Local pottery studio/ }),
   ).toHaveAttribute("href", "https://example.com/pottery");
 
-  await page.getByRole("button", { name: "Groups" }).click();
-  await expect(page.getByText("Code:").first()).toContainText("FAM778");
-  await expect(page.getByText(/Invite code:/)).toContainText("FAM778");
-  await expect(page.getByRole("heading", { name: "Name draw" })).toBeVisible();
+  await page.getByRole("button", { name: "Celebrate" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Secret Santa Generator" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "My celebrations" }).click();
+  await expect(page.getByText(/Invite code/i)).toContainText("FAM778");
+  await expect(page.getByRole("heading", { name: "Draw names" })).toBeVisible();
 
   await page.getByRole("button", { name: "Draw names" }).click();
   await expect(page.getByText(/You are gifting/)).toBeVisible();
 
-  await page
-    .getByRole("button", { name: "View Grandma Joan's wishlist" })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Grandma Joan's wishlist" }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: /View wishlist/i }).click();
   await page.getByRole("button", { name: "Reserve Garden kneeler" }).click();
   await expect(
     page.getByRole("button", { name: "Unreserve Garden kneeler" }),
   ).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("heading", { name: "Name draw" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Draw names" })).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

@@ -102,13 +102,15 @@ export default function GroupDrawPanel({
   const setup = draft.status === "setup";
 
   return (
-    <section className="card drawPanel" aria-labelledby={`draw-title-${group.id}`}>
+    <section className="card drawPanel dnCard" aria-labelledby={`draw-title-${group.id}`}>
       <div className="drawHeading">
         <div>
           <span className="drawEyebrow">Secret Santa</span>
-          <h2 id={`draw-title-${group.id}`}>Name draw</h2>
-          <p className="note">
-            Set the celebration details, add any exclusions, then draw one name for every member.
+          <h2 id={`draw-title-${group.id}`} className="dnTitle" style={{ fontSize: 22 }}>
+            Draw names
+          </h2>
+          <p className="dnSub">
+            Set exclusions if needed, then draw so nobody gets their own name.
           </p>
         </div>
         <span className={`drawStatus ${draft.status}`}>
@@ -189,11 +191,11 @@ export default function GroupDrawPanel({
           </div>
           <button
             type="button"
-            className="btn p drawPrimary"
+            className="dnContinue drawPrimary"
             disabled={saving || members.length < 2}
             onClick={drawNames}
           >
-            Draw names
+            Draw names <span aria-hidden>›</span>
           </button>
           {members.length < 2 && <small>Add at least two members before drawing.</small>}
         </div>

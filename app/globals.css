@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Nunito:wght@500;700;800&display=swap");
 
 :root {
   --bg: #f4f6f9;
@@ -7,6 +7,9 @@
   --mu: #5b6876;
   --ln: #dde3ea;
   --pr: #1f4e8c;
+  --dn-blue: #4477ee;
+  --dn-blue-soft: #e8effc;
+  --dn-snow: #e7ecf8;
   --pi: #ffffff;
   --good: #2e7d5b;
   --bad: #b3382c;
@@ -1371,5 +1374,473 @@ label.f textarea {
   }
   .drawReveal {
     animation: none;
+  }
+}
+
+/* —— DrawNames-inspired Secret Santa surface (assets PDF screenshots) —— */
+.dnShell {
+  --pr: var(--dn-blue);
+  font-family: Nunito, "DM Sans", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.dnCard {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 8px 28px rgba(40, 70, 140, 0.12);
+  padding: 22px 20px 24px;
+  border: 1px solid #edf1f8;
+}
+
+.dnTitle {
+  margin: 8px 0 10px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #2a3340;
+}
+
+.dnSub {
+  margin: 0 0 16px;
+  color: #6b7788;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.dnEyebrow {
+  margin: 0;
+  color: var(--dn-blue);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dnSection {
+  margin: 18px 0 8px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #2a3340;
+}
+
+.giftBanner {
+  display: flex;
+  justify-content: center;
+  margin: -4px 0 4px;
+}
+
+.giftBannerSvg {
+  width: min(100%, 420px);
+  height: auto;
+}
+
+.giftBanner-compact .giftBannerSvg {
+  width: min(100%, 260px);
+}
+
+.dnProgress {
+  height: 10px;
+  border-radius: 999px;
+  background: #d9e4fb;
+  overflow: hidden;
+  margin: 4px 8px 14px;
+}
+
+.dnProgressFill {
+  height: 100%;
+  background: var(--dn-blue);
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+
+.dnWizard {
+  display: flex;
+  flex-direction: column;
+}
+
+.dnWizardCard {
+  margin-top: -2px;
+}
+
+.dnField {
+  display: block;
+  margin: 12px 0;
+}
+
+.dnField input,
+.dnField textarea,
+.dnWishForm input {
+  width: 100%;
+  border: 1.5px solid #d5deec;
+  border-radius: 12px;
+  padding: 14px 14px;
+  font: inherit;
+  font-size: 16px;
+  color: #2a3340;
+  background: #fff;
+}
+
+.dnField input:focus,
+.dnField textarea:focus,
+.dnWishForm input:focus,
+.dnMessage textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--dn-blue) 45%, white);
+  border-color: var(--dn-blue);
+}
+
+.dnMessage textarea {
+  border-color: var(--dn-blue);
+  min-height: 110px;
+  resize: vertical;
+}
+
+.dnCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 8px;
+  color: #2a3340;
+  font-weight: 700;
+}
+
+.dnCheck input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--dn-blue);
+}
+
+.dnHint {
+  margin: 18px 0 0;
+  color: #6b7788;
+  font-size: 14px;
+}
+
+.dnLinkBtn {
+  border: 0;
+  background: none;
+  color: var(--dn-blue);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dnChipGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.dnChip {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #eef2f8;
+  color: var(--dn-blue);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dnChip.on {
+  background: var(--dn-blue);
+  color: #fff;
+}
+
+.dnChip.static {
+  cursor: default;
+}
+
+.dnStackChoices,
+.dnBudgetGrid {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.dnBudgetGrid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.dnChoice {
+  border: 0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #eef2f8;
+  color: var(--dn-blue);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dnChoice.on {
+  background: color-mix(in srgb, var(--dn-blue) 16%, white);
+  box-shadow: inset 0 0 0 2px var(--dn-blue);
+}
+
+.dnNav {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #e8eef6;
+}
+
+.dnBack {
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: #eef2f8;
+  color: var(--dn-blue);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+}
+
+.dnContinue {
+  flex: 1;
+  border: 0;
+  border-radius: 12px;
+  background: var(--dn-blue);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  font-size: 17px;
+  padding: 14px 18px;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.dnContinue:hover,
+.dnMenuPrimary:hover {
+  filter: brightness(1.05);
+}
+
+.dnMenuList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.dnMenuBtn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 16px 16px;
+  background: #eef2f8;
+  color: var(--dn-blue);
+  font: inherit;
+  font-weight: 800;
+  font-size: 16px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dnMenuBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dnMenuPrimary {
+  background: var(--dn-blue);
+  color: #fff;
+}
+
+.dnRule {
+  border: 0;
+  border-top: 1px solid #e4eaf3;
+  margin: 6px 0;
+}
+
+.dnSummary {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dnSummary li {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f5f7fb;
+  color: #445064;
+}
+
+.dnSummary b {
+  display: block;
+  color: #2a3340;
+  margin-bottom: 2px;
+}
+
+.dnWishShell {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.95) 0 2px, transparent 3px),
+    radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.9) 0 2px, transparent 3px),
+    radial-gradient(circle at 40% 70%, rgba(255, 255, 255, 0.85) 0 1.5px, transparent 3px),
+    radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.8) 0 2px, transparent 3px),
+    linear-gradient(180deg, #dfe6f8 0%, #e9eef9 100%);
+  border-radius: 24px;
+  padding: 18px 12px 24px;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.55'%3E%3Cpath d='M60 10v100M10 60h100M28 28l64 64M92 28L28 92M40 16l40 20M80 84L40 104M16 40l20 40M104 80L84 40'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(180deg, #dfe6f8 0%, #e9eef9 100%);
+  background-size: 120px 120px, auto;
+}
+
+.dnWishCard {
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.dnEmptyWish {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--dn-blue) 10%, white);
+  color: #2a3340;
+  margin-bottom: 14px;
+}
+
+.dnWishList {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dnWishList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f5f7fb;
+}
+
+.dnWishList a {
+  display: block;
+  color: var(--dn-blue);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dnWishList small {
+  display: block;
+  color: #6b7788;
+}
+
+.dnReserved {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ffe8a3;
+  color: #7a5a00;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.dnWishForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.dnTextBtn {
+  border: 0;
+  background: none;
+  color: var(--dn-blue);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.dnDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dnDetailBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dnCelebrationTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+
+.dnCode {
+  color: var(--dn-blue);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+}
+
+.dnMeta {
+  margin: 4px 0 0;
+  color: #6b7788;
+  font-weight: 700;
+}
+
+.dnShell .drawPanel {
+  border: 0;
+  border-radius: 20px;
+  box-shadow: 0 8px 28px rgba(40, 70, 140, 0.12);
+  font-family: Nunito, "DM Sans", system-ui, sans-serif;
+}
+
+.dnShell .drawPrimary,
+.dnShell .drawOwnerActions .btn.p {
+  background: var(--dn-blue);
+  border-color: var(--dn-blue);
+}
+
+.dnShell .drawEyebrow {
+  color: var(--dn-blue);
+}
+
+.dnShell .drawReveal {
+  background: linear-gradient(180deg, #eef3ff, #fff);
+  border: 1px solid #d7e2fb;
+}
+
+@media (max-width: 640px) {
+  .dnTitle {
+    font-size: 22px;
+  }
+  .dnBudgetGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dnShell {
+    max-width: none;
   }
 }
