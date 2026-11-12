@@ -31,3 +31,30 @@ No clear in-scope visual or UX gap remained after comparing the implemented demo
 
 - Playwright emits a harmless environment warning because `FORCE_COLOR` overrides `NO_COLOR`.
 - Live authenticated Firebase behavior remains outside this guest-demo E2E smoke test; storage and component behavior are covered by the existing unit tests.
+
+## Final whole-branch review fixes
+
+- Firestore is now initialized with `ignoreUndefinedProperties: true`, and
+  Secret Santa draw payloads omit absent `celebrationDate` and `budgetNote`
+  fields.
+- Signed-in users may read `reminderGroups` so join-by-code can scan invite
+  codes. Group updates are restricted to the existing owner or a join-only
+  update that adds exactly the caller to `members`; only the owner can change
+  `draw` or any other group field.
+- Profile access now exposes only `profile/wishlist` to non-owners. Non-owner
+  writes are update-only and limited to the wishlist `items` and `updatedAt`
+  top-level fields while preserving the owner UID. Because items are stored as
+  an array, rules cannot enforce field-level reservation-only mutations inside
+  one item; this remaining limitation is documented in `firestore.rules`.
+- Wishlist reservation compare-and-set now runs inside a Firestore transaction.
+- Secret Santa reveal animation is disabled when reduced motion is requested.
+
+## Final fix verification
+
+- Regression tests were observed failing before implementation: 4 expected
+  failures covering undefined draw fields, Firestore initialization, rules,
+  and transactional reservations.
+- `npm run typecheck` — passed.
+- `npm test` — passed: 15 files, 78 tests.
+- IDE diagnostics for edited files — no errors.
+- `git diff --check` — passed.

@@ -95,6 +95,16 @@ describe("applyReservation", () => {
 });
 
 describe("buildGroupDrawPayload", () => {
+  it("omits empty optional fields instead of returning undefined values", () => {
+    const draw = buildGroupDrawPayload("owner", ["a", "b"], {
+      rng: () => 0,
+    });
+
+    expect(draw).not.toHaveProperty("celebrationDate");
+    expect(draw).not.toHaveProperty("budgetNote");
+    expect(Object.values(draw)).not.toContain(undefined);
+  });
+
   it("uses computeAssignments for a drawn payload", () => {
     const members = ["a", "b", "c", "d"];
     const draw = buildGroupDrawPayload("owner", members, {

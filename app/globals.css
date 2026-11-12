@@ -1369,4 +1369,7 @@ label.f textarea {
   * {
     transition: none !important;
   }
+  .drawReveal {
+    animation: none;
+  }
 }

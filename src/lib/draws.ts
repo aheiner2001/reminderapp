@@ -35,8 +35,12 @@ export function buildGroupDrawPayload(
   );
   return {
     status: "drawn",
-    celebrationDate: drawSetup.celebrationDate,
-    budgetNote: drawSetup.budgetNote,
+    ...(drawSetup.celebrationDate !== undefined
+      ? { celebrationDate: drawSetup.celebrationDate }
+      : {}),
+    ...(drawSetup.budgetNote !== undefined
+      ? { budgetNote: drawSetup.budgetNote }
+      : {}),
     exclusions,
     assignments,
     drawnAt: new Date().toISOString(),

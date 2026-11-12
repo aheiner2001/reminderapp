@@ -47,6 +47,36 @@ describe("Client Storage Layer", () => {
     expect(rules).toMatch(/match \/people\/\{personId\}/);
   });
 
+  it("configures Firestore to ignore undefined properties", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/lib/firebase/client.ts"),
+      "utf8",
+    );
+    expect(source).toContain("initializeFirestore");
+    expect(source).toContain("ignoreUndefinedProperties: true");
+  });
+
+  it("restricts group joins and draw updates in Firestore rules", () => {
+    const rules = readFileSync(join(process.cwd(), "firestore.rules"), "utf8");
+    expect(rules).toMatch(/allow read: if signedIn\(\)/);
+    expect(rules).toContain("isOwnerGroupUpdate()");
+    expect(rules).toContain("isJoinOnlyUpdate()");
+    expect(rules).toMatch(/affectedKeys\(\)\s*\.hasOnly\(\['members'\]\)/);
+    expect(rules).toContain("docId == 'wishlist'");
+    expect(rules).toContain("request.resource.data.uid == userId");
+  });
+
+  it("uses a Firestore transaction for wishlist reservations", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/lib/firebase/storage.ts"),
+      "utf8",
+    );
+    expect(source).toContain("runTransaction");
+    expect(source).toMatch(/runTransaction\(db,\s*async \(transaction\)/);
+    expect(source).toContain("transaction.get(ref)");
+    expect(source).toContain("transaction.update(ref");
+  });
+
   it("clearPersonIdFromEvents nulls personId only on matching events", () => {
     const base = { ...blankEvent, id: "e1", name: "Birthday", month: 5, day: 20 };
     const events: ReminderEvent[] = [

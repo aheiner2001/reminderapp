@@ -1,14 +1,14 @@
 import {
-  getFirestore,
   doc,
   setDoc,
   getDoc,
   collection,
   getDocs,
   deleteDoc,
+  runTransaction,
   type Firestore,
 } from "firebase/firestore";
-import { browserAuth } from "./client";
+import { browserFirestore } from "./client";
 import {
   validateEvent,
   type ReminderEvent,
@@ -30,8 +30,7 @@ export function getClientDb(): Firestore {
     throw new Error("Client Firestore is only available in the browser.");
   }
   if (!dbInstance) {
-    const auth = browserAuth();
-    dbInstance = getFirestore(auth.app);
+    dbInstance = browserFirestore();
   }
   return dbInstance;
 }
@@ -415,8 +414,22 @@ export async function reserveWishlistItem(
   actorUid: string,
   action: "reserve" | "unreserve",
 ): Promise<WishlistItem[]> {
-  const items = await fetchUserWishlist(ownerUid);
-  const updated = applyReservation(items, itemId, actorUid, action);
-  await saveUserWishlist(ownerUid, updated);
-  return updated;
+  const db = getClientDb();
+  const ref = doc(db, `reminderUsers/${ownerUid}/profile`, "wishlist");
+
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists()) {
+      throw new Error("Wishlist not found.");
+    }
+
+    const data = snapshot.data();
+    const items = Array.isArray(data.items) ? data.items as WishlistItem[] : [];
+    const updated = applyReservation(items, itemId, actorUid, action);
+    transaction.update(ref, {
+      items: updated,
+      updatedAt: new Date().toISOString(),
+    });
+    return updated;
+  });
 }
