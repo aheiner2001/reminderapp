@@ -1,3 +1,5 @@
+import type { WishlistItem } from "./reminders";
+
 export interface DrawExclusion {
   aUid: string;
   bUid: string;
@@ -11,6 +13,35 @@ export interface GroupDraw {
   assignments: Record<string, string>;
   drawnAt?: string;
   drawnByUid?: string;
+}
+
+export interface DrawSetup {
+  exclusions?: DrawExclusion[];
+  celebrationDate?: string;
+  budgetNote?: string;
+  rng?: () => number;
+}
+
+export function buildGroupDrawPayload(
+  ownerUid: string,
+  memberUids: string[],
+  drawSetup: DrawSetup = {},
+): GroupDraw {
+  const exclusions = drawSetup.exclusions ?? [];
+  const assignments = computeAssignments(
+    memberUids,
+    exclusions,
+    drawSetup.rng,
+  );
+  return {
+    status: "drawn",
+    celebrationDate: drawSetup.celebrationDate,
+    budgetNote: drawSetup.budgetNote,
+    exclusions,
+    assignments,
+    drawnAt: new Date().toISOString(),
+    drawnByUid: ownerUid,
+  };
 }
 
 export function computeAssignments(
@@ -68,4 +99,27 @@ export function computeAssignments(
     );
   }
   return map;
+}
+
+export function applyReservation(
+  items: WishlistItem[],
+  itemId: string,
+  actorUid: string,
+  action: "reserve" | "unreserve",
+): WishlistItem[] {
+  return items.map((item) => {
+    if (item.id !== itemId) return item;
+    if (action === "reserve") {
+      if (item.reservedByUid) throw new Error("Already reserved");
+      return {
+        ...item,
+        reservedByUid: actorUid,
+        reservedAt: new Date().toISOString(),
+      };
+    }
+    if (item.reservedByUid !== actorUid) {
+      throw new Error("You can only unreserve your own reservation");
+    }
+    return { ...item, reservedByUid: null, reservedAt: null };
+  });
 }

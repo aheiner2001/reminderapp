@@ -1,3 +1,5 @@
+import type { GroupDraw } from "./draws";
+
 export interface ReminderEvent {
   id: string;
   name: string;
@@ -32,6 +34,7 @@ export interface GroupCircle {
   ownerUid: string;
   createdAt: string;
   members: Record<string, GroupMember>;
+  draw?: GroupDraw | null;
 }
 
 export interface WishlistItem {
