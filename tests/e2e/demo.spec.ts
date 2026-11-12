@@ -102,8 +102,11 @@ test("demo supports People notes and Secret Santa gifting flows", async ({
 
   await page.getByRole("button", { name: "Draw names" }).click();
   await expect(page.getByText(/You are gifting/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /View wishlist/i })).toBeVisible();
 
-  await page.getByRole("button", { name: /View wishlist/i }).click();
+  // Open Grandma Joan's list explicitly — draw assignment is random, so
+  // "View wishlist" may land on Maya instead of the Garden kneeler item.
+  await page.getByRole("button", { name: /^Grandma Joan$/ }).click();
   await page.getByRole("button", { name: "Reserve Garden kneeler" }).click();
   await expect(
     page.getByRole("button", { name: "Unreserve Garden kneeler" }),
