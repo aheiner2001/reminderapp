@@ -912,7 +912,7 @@ label.f textarea {
 
 .personSection.open {
   border-color: color-mix(in srgb, var(--pr) 50%, var(--ln));
-  box-shadow: 0 2px 8px rgba(20, 40, 70, 0.06);
+  box-shadow: var(--sh);
 }
 
 .personSectionHeading {

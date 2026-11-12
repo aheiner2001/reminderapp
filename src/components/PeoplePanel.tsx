@@ -226,7 +226,7 @@ export default function PeoplePanel({
                 value={draft.name}
                 maxLength={100}
                 onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                onBlur={() => save(draft)}
+                onBlur={(event) => save({ ...draft, name: event.currentTarget.value })}
               />
             </label>
             <button className="btn" type="button" onClick={() => onAddOccasion(draft)}>
@@ -240,7 +240,7 @@ export default function PeoplePanel({
             placeholder="A short note about them (optional)"
             maxLength={240}
             onChange={(event) => setDraft({ ...draft, notesSummary: event.target.value })}
-            onBlur={() => save(draft)}
+            onBlur={(event) => save({ ...draft, notesSummary: event.currentTarget.value })}
           />
 
           <div className="personSections">
@@ -288,7 +288,16 @@ export default function PeoplePanel({
                           value={section.title}
                           maxLength={80}
                           onChange={(event) => updateSection(section.id, { title: event.target.value })}
-                          onBlur={() => save(draft)}
+                          onBlur={(event) =>
+                            save({
+                              ...draft,
+                              sections: draft.sections.map((item) =>
+                                item.id === section.id
+                                  ? { ...item, title: event.currentTarget.value }
+                                  : item,
+                              ),
+                            })
+                          }
                         />
                       </label>
                       <label className="f">
@@ -298,7 +307,16 @@ export default function PeoplePanel({
                           value={section.body ?? ""}
                           placeholder="Favorite colors, hobbies, sizes, ideas to remember…"
                           onChange={(event) => updateSection(section.id, { body: event.target.value })}
-                          onBlur={() => save(draft)}
+                          onBlur={(event) =>
+                            save({
+                              ...draft,
+                              sections: draft.sections.map((item) =>
+                                item.id === section.id
+                                  ? { ...item, body: event.currentTarget.value }
+                                  : item,
+                              ),
+                            })
+                          }
                         />
                       </label>
                       {section.links.length > 0 && (
