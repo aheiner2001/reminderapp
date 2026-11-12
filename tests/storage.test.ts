@@ -2,10 +2,14 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  clearPersonIdFromEvents,
   formatStoragePath,
+  saveGroupDraw,
+  updateGroupDraw,
   validateClientEvent,
   validateClientPerson,
 } from "../src/lib/firebase/storage";
+import type { ReminderEvent } from "../src/lib/reminders";
 import { blankEvent } from "../src/lib/reminders";
 import { createBlankPerson } from "../src/lib/people";
 
@@ -40,5 +44,25 @@ describe("Client Storage Layer", () => {
     expect(rules).toMatch(/reminderGroups\/\{groupId\}/);
     expect(rules).toMatch(/docId == 'wishlist'/);
     expect(rules).toMatch(/match \/people\/\{personId\}/);
+  });
+
+  it("clearPersonIdFromEvents nulls personId only on matching events", () => {
+    const base = { ...blankEvent, id: "e1", name: "Birthday", month: 5, day: 20 };
+    const events: ReminderEvent[] = [
+      { ...base, id: "e1", personId: "person-a" },
+      { ...base, id: "e2", personId: "person-b" },
+      { ...base, id: "e3", personId: "person-a" },
+      { ...base, id: "e4" },
+    ];
+    const cleared = clearPersonIdFromEvents(events, "person-a");
+    expect(cleared).toHaveLength(2);
+    expect(cleared.map((e) => e.id).sort()).toEqual(["e1", "e3"]);
+    cleared.forEach((e) => expect(e.personId).toBeNull());
+    expect(events[0].personId).toBe("person-a");
+    expect(events[2].personId).toBe("person-a");
+  });
+
+  it("exports saveGroupDraw as alias of updateGroupDraw", () => {
+    expect(saveGroupDraw).toBe(updateGroupDraw);
   });
 });

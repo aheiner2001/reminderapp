@@ -348,6 +348,15 @@ export async function saveUserPerson(
   return payload;
 }
 
+export function clearPersonIdFromEvents(
+  events: ReminderEvent[],
+  personId: string,
+): ReminderEvent[] {
+  return events
+    .filter((ev) => ev.personId === personId)
+    .map((ev) => ({ ...ev, personId: null }));
+}
+
 export async function deleteUserPerson(
   uid: string,
   personId: string,
@@ -358,18 +367,17 @@ export async function deleteUserPerson(
 
   const eventsCol = collection(db, `reminderUsers/${uid}`, "events");
   const eventsSnap = await getDocs(eventsCol);
-  const updates: Promise<ReminderEvent>[] = [];
+  const events: ReminderEvent[] = [];
   eventsSnap.forEach((docSnap) => {
     try {
-      const ev = validateEvent({ ...docSnap.data(), id: docSnap.id });
-      if (ev.personId === personId) {
-        const cleared = { ...ev, personId: null as string | null };
-        updates.push(saveUserEvent(uid, cleared));
-      }
+      events.push(validateEvent({ ...docSnap.data(), id: docSnap.id }));
     } catch {
       // ignore corrupted
     }
   });
+  const updates = clearPersonIdFromEvents(events, personId).map((cleared) =>
+    saveUserEvent(uid, cleared),
+  );
   await Promise.all(updates);
 }
 
@@ -381,6 +389,8 @@ export async function updateGroupDraw(
   const groupRef = doc(db, "reminderGroups", groupId);
   await setDoc(groupRef, { draw }, { merge: true });
 }
+
+export const saveGroupDraw = updateGroupDraw;
 
 export async function clearGroupDraw(groupId: string): Promise<void> {
   const db = getClientDb();
