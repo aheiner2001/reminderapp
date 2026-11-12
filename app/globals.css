@@ -734,6 +734,185 @@ label.f textarea {
   gap: 12px;
 }
 
+.drawPanel {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pr) 18%, var(--ln));
+}
+
+.drawHeading,
+.drawOwnerActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.drawHeading h2 {
+  margin: 2px 0 4px;
+  font-size: 21px;
+}
+
+.drawHeading .note {
+  max-width: 620px;
+  margin-bottom: 0;
+}
+
+.drawEyebrow {
+  color: var(--pr);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.drawStatus {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--bg);
+  color: var(--mu);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.drawStatus.drawn {
+  background: color-mix(in srgb, var(--good) 14%, var(--sf));
+  color: var(--good);
+}
+
+.drawStatus.locked {
+  background: color-mix(in srgb, var(--pr) 14%, var(--sf));
+  color: var(--pr);
+}
+
+.drawSetup {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ln);
+}
+
+.drawFields {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(220px, 1.3fr);
+  gap: 12px;
+}
+
+.drawFields label.f input {
+  max-width: none;
+}
+
+.drawExclusions {
+  padding: 14px;
+  border: 1px solid var(--ln);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 60%, var(--sf));
+}
+
+.drawExclusions h3,
+.drawExclusions .note {
+  margin: 0 0 4px;
+}
+
+.drawPair {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto minmax(130px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.drawPair select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid var(--ln);
+  border-radius: 9px;
+  background: var(--sf);
+}
+
+.drawExclusionList {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+}
+
+.drawExclusionList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--ln);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.drawExclusionList button {
+  border: 0;
+  background: transparent;
+  color: var(--bad);
+  font-size: 12px;
+}
+
+.drawPrimary {
+  margin-top: 14px;
+}
+
+.drawWaiting {
+  margin: 18px 0 0;
+  padding: 16px;
+  border: 1px dashed var(--ln);
+  border-radius: 10px;
+  color: var(--mu);
+  text-align: center;
+}
+
+.drawWaiting b {
+  display: block;
+  color: var(--ink);
+}
+
+.drawReveal {
+  margin-top: 18px;
+  padding: 24px;
+  border: 1px solid color-mix(in srgb, var(--pr) 28%, var(--ln));
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--pr) 13%, transparent), transparent 42%),
+    color-mix(in srgb, var(--pr) 4%, var(--sf));
+  text-align: center;
+  animation: drawReveal 0.45s ease both;
+  transform-origin: center;
+}
+
+.drawReveal p {
+  margin: 5px 0 14px;
+  font-size: 19px;
+}
+
+.drawReveal strong {
+  color: var(--pr);
+  font-size: 24px;
+}
+
+.drawOwnerActions {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.drawError {
+  margin: 12px 0 0;
+}
+
+@keyframes drawReveal {
+  from {
+    opacity: 0;
+    transform: perspective(500px) rotateX(-8deg) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(500px) rotateX(0) translateY(0);
+  }
+}
+
 .srOnly {
   position: absolute;
   width: 1px;
@@ -1114,6 +1293,23 @@ label.f textarea {
   }
   .row {
     flex-wrap: wrap;
+  }
+  .drawHeading {
+    align-items: flex-start;
+  }
+  .drawFields,
+  .drawPair {
+    grid-template-columns: 1fr;
+  }
+  .drawPair > span {
+    display: none;
+  }
+  .drawPair .btn,
+  .drawPrimary {
+    width: 100%;
+  }
+  .drawReveal {
+    padding: 20px 14px;
   }
 }
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  assertGroupOpenForJoin,
   clearPersonIdFromEvents,
   formatStoragePath,
   saveGroupDraw,
@@ -64,5 +65,15 @@ describe("Client Storage Layer", () => {
 
   it("exports saveGroupDraw as alias of updateGroupDraw", () => {
     expect(saveGroupDraw).toBe(updateGroupDraw);
+  });
+
+  it("blocks joining a group after names are drawn or locked", () => {
+    for (const status of ["drawn", "locked"] as const) {
+      expect(() => assertGroupOpenForJoin({ status })).toThrow(
+        /organizer.*clear/i,
+      );
+    }
+    expect(() => assertGroupOpenForJoin({ status: "setup" })).not.toThrow();
+    expect(() => assertGroupOpenForJoin(null)).not.toThrow();
   });
 });

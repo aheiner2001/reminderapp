@@ -204,6 +204,7 @@ export async function joinGroupByCode(
   }
 
   const group = matchedGroup as GroupCircle;
+  assertGroupOpenForJoin(group.draw);
   const now = new Date().toISOString();
 
   group.members[uid] = {
@@ -221,6 +222,16 @@ export async function joinGroupByCode(
   await setDoc(userGroupRef, { groupId: group.id, joinedAt: now });
 
   return group;
+}
+
+export function assertGroupOpenForJoin(
+  draw: Pick<GroupDraw, "status"> | null | undefined,
+): void {
+  if (draw?.status === "drawn" || draw?.status === "locked") {
+    throw new Error(
+      "This name draw has already started. Ask the organizer to clear the draw first.",
+    );
+  }
 }
 
 export async function fetchUserGroups(uid: string): Promise<GroupCircle[]> {

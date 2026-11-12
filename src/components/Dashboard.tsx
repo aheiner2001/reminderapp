@@ -24,6 +24,7 @@ import {
   fetchUserPeople,
   saveUserPerson,
   deleteUserPerson,
+  updateGroupDraw,
 } from "../lib/firebase/storage";
 import {
   blankEvent,
@@ -42,6 +43,7 @@ import {
 import { validateSettings } from "../lib/access";
 import { createBlankPerson, type Person } from "../lib/people";
 import PeoplePanel from "./PeoplePanel";
+import GroupDrawPanel from "./GroupDrawPanel";
 
 type Tab = "over" | "ev" | "peo" | "gro" | "pre" | "his" | "set";
 type Delivery = { id: string; date: string; status: string; createdAt: string; attempts?: number };
@@ -1121,6 +1123,36 @@ export default function Dashboard() {
                         </form>
                       </div>
                     </div>
+
+                    <GroupDrawPanel
+                      group={grp}
+                      currentUid={user?.uid ?? grp.ownerUid}
+                      isOwner={(user?.uid ?? grp.ownerUid) === grp.ownerUid}
+                      wishlistsByUid={{
+                        [user?.uid ?? grp.ownerUid]: wishlistItems,
+                      }}
+                      onSaveDraw={async (draw) => {
+                        if (user) await updateGroupDraw(grp.id, draw);
+                        setGroups((current) =>
+                          current.map((item) =>
+                            item.id === grp.id ? { ...item, draw } : item,
+                          ),
+                        );
+                        toast(
+                          draw.status === "setup"
+                            ? "Name draw cleared."
+                            : draw.status === "locked"
+                              ? "Name draw locked."
+                              : "Name draw saved.",
+                        );
+                      }}
+                      onViewWishlist={(uid) => {
+                        const member = grp.members[uid];
+                        toast(
+                          `${member?.name ?? "Member"}'s wishlist will open here when shared wishlist viewing is added.`,
+                        );
+                      }}
+                    />
                   </div>
                 );
               })()
